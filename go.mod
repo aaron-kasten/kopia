@@ -8,7 +8,7 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.15.0
 	github.com/alecthomas/kingpin/v2 v2.3.2
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/aws/aws-sdk-go v1.44.251
+	github.com/aws/aws-sdk-go v1.44.254
 	github.com/chmduquesne/rollinghash v4.0.0+incompatible
 	github.com/chromedp/cdproto v0.0.0-20230220211738-2b1ec77315c9
 	github.com/chromedp/chromedp v0.9.1
@@ -46,10 +46,10 @@ require (
 	github.com/tg123/go-htpasswd v1.2.1
 	github.com/zalando/go-keyring v0.2.2
 	github.com/zeebo/blake3 v0.2.3
-	go.opentelemetry.io/otel v1.14.0
+	go.opentelemetry.io/otel v1.15.1
 	go.opentelemetry.io/otel/exporters/jaeger v1.14.0
 	go.opentelemetry.io/otel/sdk v1.14.0
-	go.opentelemetry.io/otel/trace v1.14.0
+	go.opentelemetry.io/otel/trace v1.15.1
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/crypto v0.8.0
@@ -86,7 +86,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/frankban/quicktest v1.13.1 // indirect
-	github.com/go-logr/logr v1.2.3 // indirect
+	github.com/go-logr/logr v1.2.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
