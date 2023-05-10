@@ -86,6 +86,7 @@ func (c *commandSnapshotCreate) setup(svc appServices, parent commandParent) {
 //nolint:gocyclo
 func (c *commandSnapshotCreate) run(ctx context.Context, rep repo.RepositoryWriter) error {
 	sources := c.snapshotCreateSources
+	defer rep.CloseDebug(ctx)
 
 	if err := maybeAutoUpgradeRepository(ctx, rep); err != nil {
 		return errors.Wrap(err, "error upgrading repository")

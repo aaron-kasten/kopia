@@ -129,6 +129,7 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 	c.svc.getProgress().FinishShared()
 	c.out.printStderr("\r\n")
 	log(ctx).Infof("Migration finished.")
+	sourceRepo.CloseDebug(ctx)
 
 	return nil
 }

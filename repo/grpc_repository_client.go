@@ -105,6 +105,12 @@ type grpcInnerSession struct {
 	wg sync.WaitGroup
 }
 
+func (r *grpcRepositoryClient) CloseDebug(ctx context.Context) {
+}
+
+func (r *grpcInnerSession) CloseDebug(ctx context.Context) {
+}
+
 // readLoop runs in a goroutine and consumes all messages in session and forwards them to appropriate channels.
 func (r *grpcInnerSession) readLoop(ctx context.Context) {
 	defer r.wg.Done()

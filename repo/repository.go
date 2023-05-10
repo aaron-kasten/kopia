@@ -38,6 +38,7 @@ type Repository interface {
 	NewWriter(ctx context.Context, opt WriteSessionOptions) (context.Context, RepositoryWriter, error)
 	UpdateDescription(d string)
 	Refresh(ctx context.Context) error
+	CloseDebug(ctx context.Context)
 	Close(ctx context.Context) error
 }
 
@@ -121,6 +122,7 @@ func invokeCallbacks(ctx context.Context, w RepositoryWriter, callbacks []Reposi
 type directRepository struct {
 	immutableDirectRepositoryParameters
 
+	bufs  ProfileBuffers
 	blobs blob.Storage
 	cmgr  *content.WriteManager
 	omgr  *object.Manager
@@ -128,6 +130,10 @@ type directRepository struct {
 	sm    *content.SharedManager
 
 	afterFlush []RepositoryWriterCallback
+}
+
+func (r *directRepository) CloseDebug(ctx context.Context) {
+	StopProfileBuffers(ctx, r.bufs)
 }
 
 // DeriveKey derives encryption key of the provided length from the master key.
@@ -285,6 +291,7 @@ func (r *directRepository) NewDirectWriter(ctx context.Context, opt WriteSession
 	}
 
 	w := &directRepository{
+		bufs:                                r.bufs,
 		immutableDirectRepositoryParameters: r.immutableDirectRepositoryParameters,
 		blobs:                               r.blobs,
 		cmgr:                                cmgr,

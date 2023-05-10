@@ -12,6 +12,15 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/scrypt"
 
+	"bufio"
+	"bytes"
+	"encoding/pem"
+	"fmt"
+	"io"
+	"runtime/pprof"
+
+	"runtime"
+
 	"github.com/kopia/kopia/internal/cache"
 	"github.com/kopia/kopia/internal/cacheprot"
 	"github.com/kopia/kopia/internal/epoch"
@@ -203,6 +212,139 @@ func openAPIServer(ctx context.Context, si *APIServerInfo, cliOpts ClientOptions
 	return openGRPCAPIRepository(ctx, si, password, par)
 }
 
+type ProfileBuffers struct {
+	configured           bool
+	pprofCPUBuf          *bytes.Buffer
+	pprofHeapBuf         *bytes.Buffer
+	pprofMutexBuf        *bytes.Buffer
+	pprofBlockBuf        *bytes.Buffer
+	pprofThreadCreateBuf *bytes.Buffer
+}
+
+const (
+	FeatureKopiaDebugProfileServices               = "KopiaDebugProfileServices"
+	FeatureKopiaDebugProfileDumpBufferSizeB        = "KopiaDebugProfileDumpBufferSizeB"
+	FeatureKopiaDebugCPUProfileRateHZ              = "KopiaDebugCPUProfileRateHZ"
+	FeatureKopiaDebugMutexProfileFraction          = "KopiaDebugMutexProfileFraction"
+	FeatureKopiaDebugCPUProfileDumpOnExit          = "KopiaDebugCPUProfileDumpOnExit"
+	FeatureKopiaDebugHeapProfileDumpOnExit         = "KopiaDebugHeapProfileDumpOnExit"
+	FeatureKopiaDebugMutexProfileDumpOnExit        = "KopiaDebugMutexProfileDumpOnExit"
+	FeatureKopiaDebugBlockProfileDumpOnExit        = "KopiaDebugBlockProfileDumpOnExit"
+	FeatureKopiaDebugThreadCreateProfileDumpOnExit = "KopiaDebugThreadCreateProfileDumpOnExit"
+	FeatureKopiaDebugTraceDumpOnExit               = "KopiaDebugTraceDumpOnExit"
+	FeatureK10ComplianceCacheSizeN                 = "K10ComplianceCacheSizeN"
+	FeatureK10DefaultDebugProfileServices          = ""
+	FeatureK10DefaultComplianceCacheSizeN          = 15000 // results in approx 1mb footprint
+	FeatureK10DefaultDebugProfileDumpBufferSizeB   = 1 << 24
+	FeatureKopiaDebugSuffixGoMemLimit              = "GoMemLimit"
+	FeatureKopiaDebugSuffixGoMaxProcs              = "GoMaxProcs"
+	FeatureKopiaDebugSuffixGoGc                    = "GoGc"
+	FeatureKopiaDebugSuffixGoTraceback             = "GoTraceback"
+	FeatureKopiaDebugSuffixGoDebug                 = "GoDebug"
+	FeatureKopiaDebugDeleteCollectionPrefix        = "KopiaDebugDeleteCollection"
+	FeatureKopiaDebugDeleteDataPrefix              = "KopiaDebugDeleteData"
+	FeatureKopiaDebugDatamoverPrefix               = "KopiaDebugDatamover"
+	FeatureKopiaDebugDatamoverServicePrefix        = "KopiaDebugDatamoverService"
+	FeatureKopiaDebugCopyVolumeDataPrefix          = "KopiaDebugCopyVolumeData"
+	FeatureKopiaDebugKopiaMaintenancePrefix        = "KopiaDebugKopiaMaintenance"
+	GoDebugEnvvarGoMemLimit                        = "GOMEMLIMIT"
+	GoDebugEnvvarGoMaxProcs                        = "GOMAXPROCS"
+	GoDebugEnvvarGoGc                              = "GOGC"
+	GoDebugEnvvarGoTraceback                       = "GOTRACEBACK"
+	GoDebugEnvvarGoDebug                           = "GODEBUG"
+)
+
+// StartProfileBuffers start profile buffers for enabled profiles/trace.  Buffers
+// are returned in an slice of buffers: CPU, Heap and trace respectively.
+func StartProfileBuffers(ctx context.Context) (bufs ProfileBuffers) {
+	bufSizeB := 1024 * 1000 * 16
+	// look for matching services.  "*" signals all services for profiling
+	fmt.Println("configuring profile buffers")
+	bufs.pprofCPUBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
+	bufs.pprofHeapBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
+	bufs.pprofThreadCreateBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
+	bufs.configured = true
+	return bufs
+}
+
+// DumpPem dump a PEM version of the reader, rdr, onto writer, wrt
+func DumpPem(ctx context.Context, bs []byte, types string, wrt io.Writer) error {
+	blk := &pem.Block{
+		Type:  types,
+		Bytes: bs,
+	}
+	// wrt is likely a line oriented writer, so writing individual lines
+	// will make best use of output buffer and help prevent overflows or
+	// stalls in the output path.
+	pr, pw := io.Pipe()
+	// encode PEM in the background and output in a line oriented
+	// fashion - this prevents the need for a large buffer to hold
+	// the encoded PEM.
+	go func() {
+		defer pw.Close()
+		err := pem.Encode(pw, blk)
+		if err != nil {
+			log(ctx).With("cause", err, "type", types).Error("cannot encode PEM")
+		}
+	}()
+	rdr := bufio.NewReader(pr)
+	for {
+		ln, err0 := rdr.ReadBytes('\n')
+		_, err1 := fmt.Fprint(wrt, string(ln))
+		if errors.Is(err0, io.EOF) {
+			break
+		}
+		if err0 != nil {
+			return err0
+		}
+		if err1 != nil {
+			return err1
+		}
+	}
+	return nil
+}
+
+// StopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
+// supplied here are from StartProfileBuffers
+func StopProfileBuffers(ctx context.Context, bufs ProfileBuffers) {
+	if !bufs.configured {
+		return
+	}
+	fmt.Fprintf(os.Stdout, "saving PEM buffers for output\n")
+	if bufs.pprofThreadCreateBuf != nil {
+		pprof.Lookup("threadcreate").WriteTo(bufs.pprofThreadCreateBuf, 0)
+	}
+	// each profile type requires special handling
+	if bufs.pprofCPUBuf != nil {
+		// don't get heap profile dump data in CPU profile
+		pprof.StopCPUProfile()
+	}
+	if bufs.pprofHeapBuf != nil {
+		// don't get buffer writes in heap profile
+		runtime.GC()
+		err := pprof.Lookup("heap").WriteTo(bufs.pprofHeapBuf, 0)
+		if err != nil {
+			log(ctx).With("cause", err).Error("cannot write heap profile")
+		}
+	}
+	// dump the profiles out into their respective PEMs
+	pems := []*bytes.Buffer{bufs.pprofCPUBuf, bufs.pprofHeapBuf, bufs.pprofThreadCreateBuf}
+	types := []string{
+		fmt.Sprintf("%s PPROF CPU Kopia"),
+		fmt.Sprintf("%s PPROF MEM Kopia"),
+		fmt.Sprintf("%s PPROF THREAD_CREATION Kopia")}
+	for i := range pems {
+		if pems[i] == nil || pems[i].Len() == 0 {
+			continue
+		}
+		fmt.Fprintf(os.Stdout, "dumping PEM for %q\n", types[i])
+		err := DumpPem(ctx, pems[i].Bytes(), types[i], os.Stdout)
+		if err != nil {
+			log(ctx).With("cause", err).Error("cannot write PEM")
+		}
+	}
+}
+
 // openDirect opens the repository that directly manipulates blob storage..
 func openDirect(ctx context.Context, configFile string, lc *LocalConfig, password string, options *Options) (rep Repository, err error) {
 	if lc.Storage == nil {
@@ -214,6 +356,8 @@ func openDirect(ctx context.Context, configFile string, lc *LocalConfig, passwor
 		return nil, errors.Wrap(err, "cannot open storage")
 	}
 
+	bufs := StartProfileBuffers(ctx)
+
 	if options.TraceStorage {
 		st = loggingwrapper.NewWrapper(st, log(ctx), "[STORAGE] ")
 	}
@@ -224,7 +368,7 @@ func openDirect(ctx context.Context, configFile string, lc *LocalConfig, passwor
 
 	cliOpts := lc.ApplyDefaults(ctx, "Repository in "+st.DisplayName())
 
-	r, err := openWithConfig(ctx, st, cliOpts, password, options, lc.Caching, configFile)
+	r, err := openWithConfig(ctx, st, bufs, cliOpts, password, options, lc.Caching, configFile)
 	if err != nil {
 		st.Close(ctx) //nolint:errcheck
 		return nil, err
@@ -236,7 +380,7 @@ func openDirect(ctx context.Context, configFile string, lc *LocalConfig, passwor
 // openWithConfig opens the repository with a given configuration, avoiding the need for a config file.
 //
 //nolint:funlen,gocyclo
-func openWithConfig(ctx context.Context, st blob.Storage, cliOpts ClientOptions, password string, options *Options, cacheOpts *content.CachingOptions, configFile string) (DirectRepository, error) {
+func openWithConfig(ctx context.Context, st blob.Storage, bufs ProfileBuffers, cliOpts ClientOptions, password string, options *Options, cacheOpts *content.CachingOptions, configFile string) (DirectRepository, error) {
 	cacheOpts = cacheOpts.CloneOrDefault()
 	cmOpts := &content.ManagerOptions{
 		TimeNow:                defaultTime(options.TimeNowFunc),
@@ -353,6 +497,7 @@ func openWithConfig(ctx context.Context, st blob.Storage, cliOpts ClientOptions,
 		blobs: st,
 		mmgr:  manifests,
 		sm:    scm,
+		bufs:  bufs,
 		immutableDirectRepositoryParameters: immutableDirectRepositoryParameters{
 			cachingOptions:   *cacheOpts,
 			fmgr:             fmgr,

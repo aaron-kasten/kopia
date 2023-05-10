@@ -39,6 +39,9 @@ type apiServerRepository struct {
 	*immutableServerRepositoryParameters // immutable parameters
 }
 
+func (r *apiServerRepository) CloseDebug(ctx context.Context) {
+}
+
 func (r *apiServerRepository) APIServerURL() string {
 	return r.cli.BaseURL
 }
