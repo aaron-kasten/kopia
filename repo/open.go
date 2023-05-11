@@ -257,7 +257,7 @@ const (
 // StartProfileBuffers start profile buffers for enabled profiles/trace.  Buffers
 // are returned in an slice of buffers: CPU, Heap and trace respectively.
 func StartProfileBuffers(ctx context.Context) (bufs ProfileBuffers) {
-	bufSizeB := 1024 * 1000 * 16
+	bufSizeB := FeatureK10DefaultDebugProfileDumpBufferSizeB
 	// look for matching services.  "*" signals all services for profiling
 	fmt.Println("configuring profile buffers")
 	bufs.pprofCPUBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
