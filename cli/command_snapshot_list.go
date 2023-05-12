@@ -120,6 +120,7 @@ func findManifestIDs(ctx context.Context, rep repo.Repository, source string, ta
 }
 
 func (c *commandSnapshotList) run(ctx context.Context, rep repo.Repository) error {
+	defer rep.CloseDebug(ctx)
 	tags, err := getTags(c.snapshotListTags)
 	if err != nil {
 		return err

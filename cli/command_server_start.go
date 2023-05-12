@@ -16,7 +16,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	htpasswd "github.com/tg123/go-htpasswd"
+	"github.com/tg123/go-htpasswd"
 
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/ctxutil"
@@ -215,7 +215,6 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 	c.svc.onCtrlC(func() {
 		log(ctx).Infof("Shutting down...")
-
 		if serr := httpServer.Shutdown(ctx); serr != nil {
 			log(ctx).Debugf("unable to shut down: %v", serr)
 		}

@@ -45,6 +45,7 @@ func (c *commandSnapshotMigrate) setup(svc advancedAppServices, parent commandPa
 }
 
 func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.RepositoryWriter) error {
+	defer destRepo.CloseDebug(ctx)
 	sourceRepo, err := c.openSourceRepo(ctx)
 	if err != nil {
 		return errors.Wrap(err, "can't open source repository")

@@ -310,7 +310,7 @@ func StopProfileBuffers(ctx context.Context, bufs ProfileBuffers) {
 	if !bufs.configured {
 		return
 	}
-	fmt.Fprintf(os.Stdout, "saving PEM buffers for output\n")
+	fmt.Fprintf(os.Stderr, "saving PEM buffers for output\n")
 	if bufs.pprofThreadCreateBuf != nil {
 		pprof.Lookup("threadcreate").WriteTo(bufs.pprofThreadCreateBuf, 0)
 	}
@@ -330,15 +330,15 @@ func StopProfileBuffers(ctx context.Context, bufs ProfileBuffers) {
 	// dump the profiles out into their respective PEMs
 	pems := []*bytes.Buffer{bufs.pprofCPUBuf, bufs.pprofHeapBuf, bufs.pprofThreadCreateBuf}
 	types := []string{
-		fmt.Sprintf("%s PPROF CPU Kopia"),
-		fmt.Sprintf("%s PPROF MEM Kopia"),
-		fmt.Sprintf("%s PPROF THREAD_CREATION Kopia")}
+		fmt.Sprintf("%s PPROF CPU", "Kopia"),
+		fmt.Sprintf("%s PPROF MEM", "Kopia"),
+		fmt.Sprintf("%s PPROF THREAD_CREATION", "Kopia")}
 	for i := range pems {
 		if pems[i] == nil || pems[i].Len() == 0 {
 			continue
 		}
-		fmt.Fprintf(os.Stdout, "dumping PEM for %q\n", types[i])
-		err := DumpPem(ctx, pems[i].Bytes(), types[i], os.Stdout)
+		fmt.Fprintf(os.Stderr, "dumping PEM for %q\n", types[i])
+		err := DumpPem(ctx, pems[i].Bytes(), types[i], os.Stderr)
 		if err != nil {
 			log(ctx).With("cause", err).Error("cannot write PEM")
 		}
