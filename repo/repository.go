@@ -133,6 +133,7 @@ type directRepository struct {
 }
 
 func (r *directRepository) CloseDebug(ctx context.Context) {
+	fmt.Printf("directRepository: CloseDebug(): called.\n")
 	StopProfileBuffers(ctx, r.bufs)
 }
 

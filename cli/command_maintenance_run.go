@@ -26,6 +26,7 @@ func (c *commandMaintenanceRun) setup(svc appServices, parent commandParent) {
 }
 
 func (c *commandMaintenanceRun) run(ctx context.Context, rep repo.DirectRepositoryWriter) error {
+	defer rep.CloseDebug(ctx)
 	mode := maintenance.ModeQuick
 
 	_, supportsEpochManager, err := rep.ContentManager().EpochManager()

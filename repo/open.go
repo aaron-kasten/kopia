@@ -492,12 +492,12 @@ func openWithConfig(ctx context.Context, st blob.Storage, bufs ProfileBuffers, c
 	)
 
 	dr := &directRepository{
+		bufs:  bufs,
 		cmgr:  cm,
 		omgr:  om,
 		blobs: st,
 		mmgr:  manifests,
 		sm:    scm,
-		bufs:  bufs,
 		immutableDirectRepositoryParameters: immutableDirectRepositoryParameters{
 			cachingOptions:   *cacheOpts,
 			fmgr:             fmgr,

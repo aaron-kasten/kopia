@@ -30,6 +30,7 @@ type APIServerInfo struct {
 // remoteRepository is an implementation of Repository that connects to an instance of
 // API server hosted by `kopia server`, instead of directly manipulating files in the BLOB storage.
 type apiServerRepository struct {
+	bufs                             ProfileBuffers
 	cli                              *apiclient.KopiaAPIClient
 	serverSupportsContentCompression bool
 	omgr                             *object.Manager
@@ -40,6 +41,8 @@ type apiServerRepository struct {
 }
 
 func (r *apiServerRepository) CloseDebug(ctx context.Context) {
+	fmt.Printf("CloseDebug(): called.\n")
+	StopProfileBuffers(ctx, r.bufs)
 }
 
 func (r *apiServerRepository) APIServerURL() string {
@@ -304,7 +307,10 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 		return nil, errors.Wrap(err, "unable to create API client")
 	}
 
+	bufs := StartProfileBuffers(ctx)
+
 	rr := &apiServerRepository{
+		bufs:                                bufs,
 		immutableServerRepositoryParameters: par,
 		cli:                                 cli,
 		wso: WriteSessionOptions{
