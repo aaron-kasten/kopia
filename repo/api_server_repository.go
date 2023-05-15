@@ -340,6 +340,10 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 	}
 
 	rr.omgr = omgr
+	par.registerEarlyCloseFunc(func(ctx context.Context) error {
+		rr.CloseDebug(ctx)
+		return nil
+	})
 
 	return rr, nil
 }

@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 
 	"go.uber.org/multierr"
@@ -19,6 +20,7 @@ type refCountedCloser struct {
 
 // Close decrements reference counter and invokes cleanup functions after last reference has been released.
 func (c *refCountedCloser) Close(ctx context.Context) error {
+	fmt.Printf("refCountedCloser: Close() called.\n")
 	remaining := c.refCount.Add(-1)
 
 	if remaining != 0 {

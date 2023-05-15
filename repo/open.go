@@ -308,6 +308,7 @@ func DumpPem(ctx context.Context, bs []byte, types string, wrt io.Writer) error 
 // supplied here are from StartProfileBuffers
 func StopProfileBuffers(ctx context.Context, bufs ProfileBuffers) {
 	if !bufs.configured {
+		fmt.Fprintf(os.Stderr, "profile buffers unconfigured.\n")
 		return
 	}
 	fmt.Fprintf(os.Stderr, "saving PEM buffers for output\n")
@@ -511,6 +512,11 @@ func openWithConfig(ctx context.Context, st blob.Storage, bufs ProfileBuffers, c
 			beforeFlush:      options.BeforeFlush,
 		},
 	}
+
+	dr.registerEarlyCloseFunc(func(ctx context.Context) error {
+		dr.CloseDebug(ctx)
+		return nil
+	})
 
 	return dr, nil
 }
