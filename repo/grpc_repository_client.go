@@ -921,7 +921,11 @@ func newGRPCAPIRepositoryForConnection(
 		opt.OnUpload = func(i int64) {}
 	}
 
-	bufs := StartProfileBuffers(ctx)
+	bufs, err := StartProfileBuffers("KOPIA OPEN GRPC REPO")
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to setup profile buffers")
+	}
+
 	rr := &grpcRepositoryClient{
 		bufs:                                bufs,
 		immutableServerRepositoryParameters: par,

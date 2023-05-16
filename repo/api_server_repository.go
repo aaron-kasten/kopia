@@ -307,7 +307,10 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 		return nil, errors.Wrap(err, "unable to create API client")
 	}
 
-	bufs := StartProfileBuffers(ctx)
+	bufs, err := StartProfileBuffers("KOPIA OPEN REST REPO")
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to setup profile buffers")
+	}
 
 	rr := &apiServerRepository{
 		bufs:                                bufs,

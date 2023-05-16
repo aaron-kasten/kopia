@@ -29,7 +29,7 @@ func (c *commandSnapshotDelete) setup(svc appServices, parent commandParent) {
 }
 
 func (c *commandSnapshotDelete) run(ctx context.Context, rep repo.RepositoryWriter) error {
-	defer rep.CloseDebug(ctx)
+	defer rep.Close(ctx)
 	if c.snapshotDeleteAllSnapshotsForSource {
 		return c.snapshotDeleteSources(ctx, rep)
 	}

@@ -45,13 +45,15 @@ func (c *commandSnapshotMigrate) setup(svc advancedAppServices, parent commandPa
 }
 
 func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.RepositoryWriter) error {
-	defer destRepo.CloseDebug(ctx)
 	sourceRepo, err := c.openSourceRepo(ctx)
 	if err != nil {
 		return errors.Wrap(err, "can't open source repository")
 	}
 
-	defer sourceRepo.Close(ctx) //nolint:errcheck
+	defer func() {
+		destRepo.Close(ctx)
+		sourceRepo.Close(ctx)
+	}()
 
 	sources, err := c.getSourcesToMigrate(ctx, sourceRepo)
 	if err != nil {
@@ -130,7 +132,6 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 	c.svc.getProgress().FinishShared()
 	c.out.printStderr("\r\n")
 	log(ctx).Infof("Migration finished.")
-	sourceRepo.CloseDebug(ctx)
 
 	return nil
 }

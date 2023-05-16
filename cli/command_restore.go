@@ -366,7 +366,7 @@ func (c *commandRestore) setupPlaceholderExpansion(ctx context.Context, rep repo
 }
 
 func (c *commandRestore) run(ctx context.Context, rep repo.Repository) error {
-	defer rep.CloseDebug(ctx)
+	defer rep.Close(ctx)
 	output, oerr := c.restoreOutput(ctx, rep)
 	if oerr != nil {
 		return errors.Wrap(oerr, "unable to initialize output")

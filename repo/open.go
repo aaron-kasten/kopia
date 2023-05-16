@@ -214,6 +214,7 @@ func openAPIServer(ctx context.Context, si *APIServerInfo, cliOpts ClientOptions
 
 type ProfileBuffers struct {
 	configured           bool
+	class                string
 	pprofCPUBuf          *bytes.Buffer
 	pprofHeapBuf         *bytes.Buffer
 	pprofMutexBuf        *bytes.Buffer
@@ -256,15 +257,20 @@ const (
 
 // StartProfileBuffers start profile buffers for enabled profiles/trace.  Buffers
 // are returned in an slice of buffers: CPU, Heap and trace respectively.
-func StartProfileBuffers(ctx context.Context) (bufs ProfileBuffers) {
+func StartProfileBuffers(class string) (bufs ProfileBuffers, err error) {
 	bufSizeB := FeatureK10DefaultDebugProfileDumpBufferSizeB
 	// look for matching services.  "*" signals all services for profiling
-	fmt.Println("configuring profile buffers")
+	fmt.Fprintf(os.Stdout, "configuring profile buffers for %q\n", class)
+	bufs.class = class
 	bufs.pprofCPUBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
 	bufs.pprofHeapBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
 	bufs.pprofThreadCreateBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
+	err = pprof.StartCPUProfile(bufs.pprofCPUBuf)
+	if err != nil {
+		return ProfileBuffers{}, err
+	}
 	bufs.configured = true
-	return bufs
+	return bufs, nil
 }
 
 // DumpPem dump a PEM version of the reader, rdr, onto writer, wrt
@@ -308,10 +314,10 @@ func DumpPem(ctx context.Context, bs []byte, types string, wrt io.Writer) error 
 // supplied here are from StartProfileBuffers
 func StopProfileBuffers(ctx context.Context, bufs ProfileBuffers) {
 	if !bufs.configured {
-		fmt.Fprintf(os.Stderr, "profile buffers unconfigured.\n")
+		fmt.Fprintf(os.Stderr, "profile buffers unconfigured for %q.\n", bufs.class)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "saving PEM buffers for output\n")
+	fmt.Fprintf(os.Stderr, "saving %q PEM buffers for output\n", bufs.class)
 	if bufs.pprofThreadCreateBuf != nil {
 		pprof.Lookup("threadcreate").WriteTo(bufs.pprofThreadCreateBuf, 0)
 	}
@@ -325,15 +331,15 @@ func StopProfileBuffers(ctx context.Context, bufs ProfileBuffers) {
 		runtime.GC()
 		err := pprof.Lookup("heap").WriteTo(bufs.pprofHeapBuf, 0)
 		if err != nil {
-			log(ctx).With("cause", err).Error("cannot write heap profile")
+			log(ctx).With("cause", err).Errorf("cannot write heap profile for %q", bufs.class)
 		}
 	}
 	// dump the profiles out into their respective PEMs
 	pems := []*bytes.Buffer{bufs.pprofCPUBuf, bufs.pprofHeapBuf, bufs.pprofThreadCreateBuf}
 	types := []string{
-		fmt.Sprintf("%s PPROF CPU", "Kopia"),
-		fmt.Sprintf("%s PPROF MEM", "Kopia"),
-		fmt.Sprintf("%s PPROF THREAD_CREATION", "Kopia")}
+		fmt.Sprintf("%s PPROF CPU", bufs.class),
+		fmt.Sprintf("%s PPROF MEM", bufs.class),
+		fmt.Sprintf("%s PPROF THREAD_CREATION", bufs.class)}
 	for i := range pems {
 		if pems[i] == nil || pems[i].Len() == 0 {
 			continue
@@ -341,7 +347,7 @@ func StopProfileBuffers(ctx context.Context, bufs ProfileBuffers) {
 		fmt.Fprintf(os.Stderr, "dumping PEM for %q\n", types[i])
 		err := DumpPem(ctx, pems[i].Bytes(), types[i], os.Stderr)
 		if err != nil {
-			log(ctx).With("cause", err).Error("cannot write PEM")
+			log(ctx).With("cause", err).Errorf("cannot write PEM for %q", bufs.class)
 		}
 	}
 }
@@ -357,7 +363,10 @@ func openDirect(ctx context.Context, configFile string, lc *LocalConfig, passwor
 		return nil, errors.Wrap(err, "cannot open storage")
 	}
 
-	bufs := StartProfileBuffers(ctx)
+	bufs, err := StartProfileBuffers("KOPIA OPEN DIRECT REPO")
+	if err != nil {
+		return nil, errors.Wrap(err, "unable to setup profile buffers")
+	}
 
 	if options.TraceStorage {
 		st = loggingwrapper.NewWrapper(st, log(ctx), "[STORAGE] ")
