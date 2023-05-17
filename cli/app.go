@@ -90,6 +90,7 @@ type appServices interface {
 	Stderr() io.Writer
 	stdin() io.Reader
 	onCtrlC(callback func())
+	onSigTerm(callback func())
 	onRepositoryFatalError(callback func(err error))
 	enableTestOnlyFlags() bool
 	EnvName(s string) string
