@@ -33,7 +33,7 @@ func (c *App) onRepositoryFatalError(f func(err error)) {
 
 func (c *App) onSigTerm(f func()) {
 	s := make(chan os.Signal, 1)
-	signal.Notify(s, syscall.SIGINT)
+	signal.Notify(s, syscall.SIGTERM)
 
 	go func() {
 		// invoke the function when either real or simulated Ctrl-C signal is delivered
