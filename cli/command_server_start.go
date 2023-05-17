@@ -208,6 +208,11 @@ func (c *commandServerStart) run(ctx context.Context) error {
 			return errors.Wrap(httpServer.Close(), "close")
 		}
 
+		rep := srv.GetRepository()
+		if rep != nil {
+			rep.Close(ctx)
+		}
+
 		log(ctx2).Debugf("graceful shutdown succeeded")
 
 		return nil
@@ -218,11 +223,19 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		if serr := httpServer.Shutdown(ctx); serr != nil {
 			log(ctx).Debugf("unable to shut down: %v", serr)
 		}
+		rep := srv.GetRepository()
+		if rep != nil {
+			rep.Close(ctx)
+		}
 	})
 
 	c.svc.onRepositoryFatalError(func(_ error) {
 		if serr := httpServer.Shutdown(ctx); serr != nil {
 			log(ctx).Debugf("unable to shut down: %v", serr)
+		}
+		rep := srv.GetRepository()
+		if rep != nil {
+			rep.Close(ctx)
 		}
 	})
 
