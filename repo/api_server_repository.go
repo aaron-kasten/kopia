@@ -40,9 +40,9 @@ type apiServerRepository struct {
 	*immutableServerRepositoryParameters // immutable parameters
 }
 
-func (r *apiServerRepository) CloseDebug(ctx context.Context) {
+func (r *apiServerRepository) CloseDebug(ctx context.Context, forcegc bool, reason string) {
 	fmt.Printf("CloseDebug(): called.\n")
-	StopProfileBuffers(ctx, r.bufs)
+	StopProfileBuffers(ctx, reason, forcegc, r.bufs)
 }
 
 func (r *apiServerRepository) APIServerURL() string {
@@ -344,7 +344,7 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 
 	rr.omgr = omgr
 	par.registerEarlyCloseFunc(func(ctx context.Context) error {
-		rr.CloseDebug(ctx)
+		rr.CloseDebug(ctx, false, "early close")
 		return nil
 	})
 

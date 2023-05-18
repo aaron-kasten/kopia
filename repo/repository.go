@@ -38,7 +38,7 @@ type Repository interface {
 	NewWriter(ctx context.Context, opt WriteSessionOptions) (context.Context, RepositoryWriter, error)
 	UpdateDescription(d string)
 	Refresh(ctx context.Context) error
-	CloseDebug(ctx context.Context)
+	CloseDebug(ctx context.Context, forcegc bool, reason string)
 	Close(ctx context.Context) error
 }
 
@@ -132,9 +132,9 @@ type directRepository struct {
 	afterFlush []RepositoryWriterCallback
 }
 
-func (r *directRepository) CloseDebug(ctx context.Context) {
+func (r *directRepository) CloseDebug(ctx context.Context, forcegc bool, reason string) {
 	fmt.Printf("directRepository: CloseDebug(): called.\n")
-	StopProfileBuffers(ctx, r.bufs)
+	StopProfileBuffers(ctx, reason, forcegc, r.bufs)
 }
 
 // DeriveKey derives encryption key of the provided length from the master key.

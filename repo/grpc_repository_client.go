@@ -108,12 +108,12 @@ type grpcInnerSession struct {
 	wg sync.WaitGroup
 }
 
-func (r *grpcRepositoryClient) CloseDebug(ctx context.Context) {
+func (r *grpcRepositoryClient) CloseDebug(ctx context.Context, forcegc bool, reason string) {
 	fmt.Printf("grpcRepositoryClient: CloseDebug(): called.\n")
-	StopProfileBuffers(ctx, r.bufs)
+	StopProfileBuffers(ctx, reason, forcegc, r.bufs)
 }
 
-func (r *grpcInnerSession) CloseDebug(ctx context.Context) {
+func (r *grpcInnerSession) CloseDebug(ctx context.Context, forcegc bool, reason string) {
 	fmt.Printf("grpcInnerSession: CloseDebug(): called.\n")
 }
 
@@ -840,7 +840,7 @@ func openGRPCAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 
 	par.refCountedCloser.registerEarlyCloseFunc(
 		func(ctx context.Context) error {
-			rep.CloseDebug(ctx)
+			rep.CloseDebug(ctx, false, "early close")
 			return errors.Wrap(conn.Close(), "error closing GRPC connection")
 		})
 
