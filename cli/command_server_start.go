@@ -220,15 +220,10 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 	c.svc.onCtrlC(func() {
 		log(ctx).Infof("SIGINT: Shutting down...")
-		rep := srv.GetRepository()
-		if rep != nil {
-			rep.CloseDebug(ctx, false, "SIGINT")
-		}
 		if serr := httpServer.Shutdown(ctx); serr != nil {
 			log(ctx).Debugf("unable to shut down: %v", serr)
 		}
-		log(ctx).Infof("SIGINT: Server down, Closing repository")
-		rep = srv.GetRepository()
+		rep := srv.GetRepository()
 		if rep != nil {
 			rep.Close(ctx)
 		}
@@ -236,14 +231,10 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 	c.svc.onSigTerm(func() {
 		log(ctx).Infof("SIGTERM: Shutting down...")
-		rep := srv.GetRepository()
-		if rep != nil {
-			rep.CloseDebug(ctx, false, "SIGTERM")
-		}
 		if serr := httpServer.Shutdown(ctx); serr != nil {
 			log(ctx).Debugf("unable to shut down: %v", serr)
 		}
-		rep = srv.GetRepository()
+		rep := srv.GetRepository()
 		if rep != nil {
 			rep.Close(ctx)
 		}
@@ -251,14 +242,10 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 	c.svc.onRepositoryFatalError(func(_ error) {
 		log(ctx).Infof("Fatal Error: Shutting down...")
-		rep := srv.GetRepository()
-		if rep != nil {
-			rep.CloseDebug(ctx, false, "FATAL")
-		}
 		if serr := httpServer.Shutdown(ctx); serr != nil {
 			log(ctx).Debugf("unable to shut down: %v", serr)
 		}
-		rep = srv.GetRepository()
+		rep := srv.GetRepository()
 		if rep != nil {
 			rep.Close(ctx)
 		}

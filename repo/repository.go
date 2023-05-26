@@ -38,8 +38,8 @@ type Repository interface {
 	NewWriter(ctx context.Context, opt WriteSessionOptions) (context.Context, RepositoryWriter, error)
 	UpdateDescription(d string)
 	Refresh(ctx context.Context) error
-	CloseDebug(ctx context.Context, forcegc bool, reason string)
 	Close(ctx context.Context) error
+	CloseDebug(ctx context.Context, forcegc bool, reason string)
 }
 
 // RepositoryWriter provides methods to write to a repository.
@@ -122,7 +122,7 @@ func invokeCallbacks(ctx context.Context, w RepositoryWriter, callbacks []Reposi
 type directRepository struct {
 	immutableDirectRepositoryParameters
 
-	bufs  ProfileBuffers
+	bufs  Profiles
 	blobs blob.Storage
 	cmgr  *content.WriteManager
 	omgr  *object.Manager
@@ -133,7 +133,6 @@ type directRepository struct {
 }
 
 func (r *directRepository) CloseDebug(ctx context.Context, forcegc bool, reason string) {
-	fmt.Printf("directRepository: CloseDebug(): called.\n")
 	StopProfileBuffers(ctx, reason, forcegc, r.bufs)
 }
 

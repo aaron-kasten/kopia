@@ -60,6 +60,18 @@ var supportedFeatures = []feature.Feature{
 	"index-v2",
 }
 
+type ProfileName string
+
+const (
+	ProfileNameGoroutine    = "goroutine"
+	ProfileNameThreadcreate = "threadcreate"
+	ProfileNameHeap         = "heap"
+	ProfileNameAllocs       = "allocs"
+	ProfileNameBlock        = "block"
+	ProfileNameMutex        = "mutex"
+	ProfileNameCpu          = "cpu"
+)
+
 // throttlingWindow is the duration window during which the throttling token bucket fully replenishes.
 // the maximum number of tokens in the bucket is multiplied by the number of seconds.
 const throttlingWindow = 60 * time.Second
@@ -74,6 +86,16 @@ const localCacheIntegrityHMACSecretLength = 16
 var localCacheIntegrityPurpose = []byte("local-cache-integrity")
 
 var log = logging.Module("kopia/repo")
+
+var pprofBufferNames = map[string]struct{}{
+	ProfileNameGoroutine:    {},
+	ProfileNameThreadcreate: {},
+	ProfileNameHeap:         {},
+	ProfileNameAllocs:       {},
+	ProfileNameBlock:        {},
+	ProfileNameMutex:        {},
+	ProfileNameCpu:          {},
+}
 
 // Options provides configuration parameters for connection to a repository.
 type Options struct {
@@ -214,15 +236,15 @@ func openAPIServer(ctx context.Context, si *APIServerInfo, cliOpts ClientOptions
 	return openGRPCAPIRepository(ctx, si, password, par)
 }
 
-type ProfileBuffers struct {
-	configured           bool
-	class                string
-	debug                int64
-	pprofCPUBuf          *bytes.Buffer
-	pprofHeapBuf         *bytes.Buffer
-	pprofMutexBuf        *bytes.Buffer
-	pprofBlockBuf        *bytes.Buffer
-	pprofThreadCreateBuf *bytes.Buffer
+type ProfileBuffer struct {
+	debug int
+	buf   *bytes.Buffer
+}
+
+type Profiles struct {
+	configured bool
+	class      string
+	profiles   map[string]ProfileBuffer
 }
 
 const (
@@ -239,7 +261,7 @@ const (
 	FeatureK10ComplianceCacheSizeN                 = "K10ComplianceCacheSizeN"
 	FeatureK10DefaultDebugProfileServices          = ""
 	FeatureK10DefaultComplianceCacheSizeN          = 15000 // results in approx 1mb footprint
-	FeatureK10DefaultDebugProfileDumpBufferSizeB   = 1 << 24
+	FeatureK10DefaultDebugProfileDumpBufferSizeB   = 1 << 17
 	FeatureKopiaDebugSuffixGoMemLimit              = "GoMemLimit"
 	FeatureKopiaDebugSuffixGoMaxProcs              = "GoMaxProcs"
 	FeatureKopiaDebugSuffixGoGc                    = "GoGc"
@@ -260,26 +282,73 @@ const (
 
 // StartProfileBuffers start profile buffers for enabled profiles/trace.  Buffers
 // are returned in an slice of buffers: CPU, Heap and trace respectively.
-func StartProfileBuffers(class string) (bufs ProfileBuffers, err error) {
+func StartProfileBuffers(ctx context.Context, class string) (bufs Profiles, err error) {
+	ppconfig := os.Getenv("KOPIA_PPROF_DUMP")
+	if ppconfig == "" {
+		ppconfig = strings.Join([]string{
+			ProfileNameGoroutine,
+			ProfileNameThreadcreate,
+			ProfileNameHeap,
+			ProfileNameAllocs,
+			ProfileNameBlock,
+			ProfileNameMutex,
+			//			ProfileNameCpu,
+		}, ",")
+	}
+	if ppconfig == "" {
+		return Profiles{}, nil
+	}
+
 	bufSizeB := FeatureK10DefaultDebugProfileDumpBufferSizeB
 	// look for matching services.  "*" signals all services for profiling
 	fmt.Fprintf(os.Stderr, "configuring profile buffers for %q\n", class)
+
+	bufs.profiles = map[string]ProfileBuffer{}
 	bufs.class = class
-	bufs.pprofCPUBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
-	bufs.pprofHeapBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
-	bufs.pprofThreadCreateBuf = bytes.NewBuffer(make([]byte, 0, bufSizeB))
-	debugs := os.Getenv("KOPIA_DEBUG_DEBUG")
-	if debugs != "" {
-		bufs.debug, err = strconv.ParseInt(debugs, 10, 64)
+
+	ss0s := strings.Split(strings.TrimSpace(ppconfig), ",")
+	for _, ss0 := range ss0s {
+		ss1 := strings.Split(strings.TrimSpace(ss0), "=")
+		switch len(ss1) {
+		case 0:
+			continue
+		case 2:
+		default:
+			log(ctx).Warnf("Invalid PPROF configuration string %q", ss0)
+		}
+		key := strings.ToLower(strings.TrimSpace(ss1[0]))
+		_, ok := pprofBufferNames[key]
+		if !ok {
+			continue
+		}
+		debug := 0
+		if len(ss1) == 2 {
+			debug, err = strconv.Atoi(strings.TrimSpace(ss1[1]))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "invalid debug number: %v", err)
+				continue
+			}
+		}
+		pb := ProfileBuffer{
+			buf:   bytes.NewBuffer(make([]byte, 0, bufSizeB)),
+			debug: debug,
+		}
+		bufs.profiles[key] = pb
+	}
+	if len(bufs.profiles) == 0 {
+		return Profiles{}, nil
+	}
+
+	bufs.configured = true
+
+	v, ok := bufs.profiles[ProfileNameCpu]
+	if ok {
+		err = pprof.StartCPUProfile(v.buf)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "cannot parse debug string %q: %v\n", debugs, err)
+			return Profiles{}, err
 		}
 	}
-	err = pprof.StartCPUProfile(bufs.pprofCPUBuf)
-	if err != nil {
-		return ProfileBuffers{}, err
-	}
-	bufs.configured = true
+
 	return bufs, nil
 }
 
@@ -320,43 +389,49 @@ func DumpPem(ctx context.Context, bs []byte, types string, wrt *os.File) error {
 
 // StopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
 // supplied here are from StartProfileBuffers
-func StopProfileBuffers(ctx context.Context, reason string, forcegc bool, bufs ProfileBuffers) {
+func StopProfileBuffers(ctx context.Context, reason string, forcegc bool, bufs Profiles) {
 	if !bufs.configured {
-		fmt.Fprintf(os.Stderr, "profile buffers unconfigured for %q.\n", bufs.class)
+		log(ctx).Infof("profile buffers unconfigured for %q.", bufs.class)
 		return
 	}
-	fmt.Fprintf(os.Stderr, "saving %q PEM buffers for output\n", bufs.class)
-	if bufs.pprofThreadCreateBuf != nil {
-		pprof.Lookup("threadcreate").WriteTo(bufs.pprofThreadCreateBuf, int(bufs.debug))
-	}
+	log(ctx).Infof("saving %q PEM buffers for output", bufs.class)
 	// each profile type requires special handling
-	if bufs.pprofCPUBuf != nil {
+	_, ok := bufs.profiles[ProfileNameCpu]
+	if ok {
 		// don't get heap profile dump data in CPU profile
 		pprof.StopCPUProfile()
 	}
-	if bufs.pprofHeapBuf != nil {
+	hepb, ok := bufs.profiles[ProfileNameHeap]
+	if ok {
 		// don't get buffer writes in heap profile
-		// do not GC - it can take some time.
+		// GC optional - it can take some time.
 		if forcegc {
 			runtime.GC()
 		}
-		err := pprof.Lookup("heap").WriteTo(bufs.pprofHeapBuf, int(bufs.debug))
+		err := pprof.Lookup(ProfileNameHeap).WriteTo(hepb.buf, hepb.debug)
 		if err != nil {
-			log(ctx).With("cause", err).Errorf("cannot write heap profile for %q", bufs.class)
+			log(ctx).With("cause", err).Errorf("cannot write %s profile for %q", ProfileNameHeap, bufs.class)
+		}
+	}
+	for k, tcb := range bufs.profiles {
+		switch k {
+		case ProfileNameCpu, ProfileNameHeap:
+			continue
+		}
+		err := pprof.Lookup(k).WriteTo(tcb.buf, tcb.debug)
+		if err != nil {
+			log(ctx).Warnf("error writing buffer", err)
 		}
 	}
 	// dump the profiles out into their respective PEMs
-	pems := []*bytes.Buffer{bufs.pprofCPUBuf, bufs.pprofHeapBuf, bufs.pprofThreadCreateBuf}
-	types := []string{
-		fmt.Sprintf("%s PPROF CPU", bufs.class),
-		fmt.Sprintf("%s PPROF MEM", bufs.class),
-		fmt.Sprintf("%s PPROF THREAD_CREATION", bufs.class)}
-	for i := range pems {
-		if pems[i] == nil || pems[i].Len() == 0 {
+	for key := range pprofBufferNames {
+		unm := strings.ToUpper(key)
+		prf, ok := bufs.profiles[key]
+		if !ok {
 			continue
 		}
-		fmt.Fprintf(os.Stderr, "dumping PEM for %q.  reason %q\n", types[i], reason)
-		err := DumpPem(ctx, pems[i].Bytes(), types[i], os.Stderr)
+		log(ctx).Infof("dumping PEM for %q.  reason %q\n", unm, reason)
+		err := DumpPem(ctx, prf.buf.Bytes(), unm, os.Stderr)
 		if err != nil {
 			log(ctx).With("cause", err).Errorf("cannot write PEM for %q", bufs.class)
 		}
@@ -374,7 +449,7 @@ func openDirect(ctx context.Context, configFile string, lc *LocalConfig, passwor
 		return nil, errors.Wrap(err, "cannot open storage")
 	}
 
-	bufs, err := StartProfileBuffers("KOPIA OPEN DIRECT REPO")
+	bufs, err := StartProfileBuffers(ctx, "KOPIA OPEN DIRECT REPO")
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to setup profile buffers")
 	}
@@ -401,7 +476,7 @@ func openDirect(ctx context.Context, configFile string, lc *LocalConfig, passwor
 // openWithConfig opens the repository with a given configuration, avoiding the need for a config file.
 //
 //nolint:funlen,gocyclo
-func openWithConfig(ctx context.Context, st blob.Storage, bufs ProfileBuffers, cliOpts ClientOptions, password string, options *Options, cacheOpts *content.CachingOptions, configFile string) (DirectRepository, error) {
+func openWithConfig(ctx context.Context, st blob.Storage, bufs Profiles, cliOpts ClientOptions, password string, options *Options, cacheOpts *content.CachingOptions, configFile string) (DirectRepository, error) {
 	cacheOpts = cacheOpts.CloneOrDefault()
 	cmOpts := &content.ManagerOptions{
 		TimeNow:                defaultTime(options.TimeNowFunc),

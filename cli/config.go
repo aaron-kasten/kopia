@@ -36,9 +36,9 @@ func (c *App) onSigTerm(f func()) {
 	signal.Notify(s, syscall.SIGTERM)
 
 	go func() {
-		// invoke the function when either real or simulated Ctrl-C signal is delivered
+		// invoke the function when either real or simulated SIGTERM signal is delivered
 		select {
-		case v := <-c.simulatedCtrlC:
+		case v := <-c.simulatedSigTerm:
 			if !v {
 				return
 			}
@@ -51,7 +51,7 @@ func (c *App) onSigTerm(f func()) {
 
 func (c *App) onCtrlC(f func()) {
 	s := make(chan os.Signal, 1)
-	signal.Notify(s, os.Interrupt)
+	signal.Notify(s, os.Interrupt) // SIGINT
 
 	go func() {
 		// invoke the function when either real or simulated Ctrl-C signal is delivered

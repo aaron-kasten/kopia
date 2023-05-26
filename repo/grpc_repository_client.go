@@ -16,8 +16,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"fmt"
-
 	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/internal/ctxutil"
 	"github.com/kopia/kopia/internal/gather"
@@ -61,7 +59,7 @@ func errNoSessionResponse() error {
 // grpcRepositoryClient is an implementation of Repository that connects to an instance of
 // GPRC API server hosted by `kopia server`.
 type grpcRepositoryClient struct {
-	bufs ProfileBuffers
+	bufs Profiles
 	conn *grpc.ClientConn
 
 	innerSessionMutex sync.Mutex
@@ -109,12 +107,7 @@ type grpcInnerSession struct {
 }
 
 func (r *grpcRepositoryClient) CloseDebug(ctx context.Context, forcegc bool, reason string) {
-	fmt.Printf("grpcRepositoryClient: CloseDebug(): called.\n")
 	StopProfileBuffers(ctx, reason, forcegc, r.bufs)
-}
-
-func (r *grpcInnerSession) CloseDebug(ctx context.Context, forcegc bool, reason string) {
-	fmt.Printf("grpcInnerSession: CloseDebug(): called.\n")
 }
 
 // readLoop runs in a goroutine and consumes all messages in session and forwards them to appropriate channels.
@@ -921,7 +914,7 @@ func newGRPCAPIRepositoryForConnection(
 		opt.OnUpload = func(i int64) {}
 	}
 
-	bufs, err := StartProfileBuffers("KOPIA OPEN GRPC REPO")
+	bufs, err := StartProfileBuffers(ctx, "KOPIA OPEN GRPC REPO")
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to setup profile buffers")
 	}
