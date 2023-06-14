@@ -18,6 +18,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tg123/go-htpasswd"
 
+	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/ctxutil"
 	"github.com/kopia/kopia/internal/server"
@@ -230,7 +231,7 @@ func (c *commandServerStart) run(ctx context.Context) error {
 	})
 
 	c.svc.onSigTerm(func() {
-		log(ctx).Infof("SIGTERM: Shutting down...")
+		log(ctx).Infof("Shutting down...")
 		if serr := httpServer.Shutdown(ctx); serr != nil {
 			log(ctx).Debugf("unable to shut down: %v", serr)
 		}
@@ -238,6 +239,12 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		if rep != nil {
 			rep.Close(ctx)
 		}
+	})
+
+	c.svc.onSigDump(func() {
+		log(ctx).Infof("Dumping profiles...")
+		debug.StopProfileBuffers(ctx)
+		debug.StartProfileBuffers(ctx)
 	})
 
 	c.svc.onRepositoryFatalError(func(_ error) {

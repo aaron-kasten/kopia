@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 
+	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/internal/metrics"
 	"github.com/kopia/kopia/repo/blob"
@@ -39,7 +40,12 @@ type Repository interface {
 	UpdateDescription(d string)
 	Refresh(ctx context.Context) error
 	Close(ctx context.Context) error
-	CloseDebug(ctx context.Context, forcegc bool, reason string)
+	CloseDebug(ctx context.Context)
+}
+
+type DebugRepository interface {
+	Repository
+	CloseDebug(ctx context.Context)
 }
 
 // RepositoryWriter provides methods to write to a repository.
@@ -122,7 +128,6 @@ func invokeCallbacks(ctx context.Context, w RepositoryWriter, callbacks []Reposi
 type directRepository struct {
 	immutableDirectRepositoryParameters
 
-	bufs  Profiles
 	blobs blob.Storage
 	cmgr  *content.WriteManager
 	omgr  *object.Manager
@@ -132,8 +137,8 @@ type directRepository struct {
 	afterFlush []RepositoryWriterCallback
 }
 
-func (r *directRepository) CloseDebug(ctx context.Context, forcegc bool, reason string) {
-	StopProfileBuffers(ctx, reason, forcegc, r.bufs)
+func (r *directRepository) CloseDebug(ctx context.Context) {
+	debug.StopProfileBuffers(ctx)
 }
 
 // DeriveKey derives encryption key of the provided length from the master key.
@@ -291,7 +296,6 @@ func (r *directRepository) NewDirectWriter(ctx context.Context, opt WriteSession
 	}
 
 	w := &directRepository{
-		bufs:                                r.bufs,
 		immutableDirectRepositoryParameters: r.immutableDirectRepositoryParameters,
 		blobs:                               r.blobs,
 		cmgr:                                cmgr,

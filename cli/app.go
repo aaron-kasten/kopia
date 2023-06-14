@@ -91,6 +91,7 @@ type appServices interface {
 	stdin() io.Reader
 	onCtrlC(callback func())
 	onSigTerm(callback func())
+	onSigDump(callback func())
 	onRepositoryFatalError(callback func(err error))
 	enableTestOnlyFlags() bool
 	EnvName(s string) string
@@ -172,6 +173,7 @@ type App struct {
 	loggerFactory    logging.LoggerFactory
 	simulatedCtrlC   chan bool
 	simulatedSigTerm chan bool
+	simulatedSigDump chan bool
 	envNamePrefix    string
 }
 

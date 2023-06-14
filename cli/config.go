@@ -49,6 +49,23 @@ func (c *App) onSigTerm(f func()) {
 	}()
 }
 
+func (c *App) onSigDump(f func()) {
+	s := make(chan os.Signal, 1)
+	signal.Notify(s, syscall.SIGUSR1)
+	go func() {
+		// invoke the function when either real or simulated SIGTERM signal is delivered
+		select {
+		case v := <-c.simulatedSigDump:
+			if !v {
+				return
+			}
+
+		case <-s:
+		}
+		f()
+	}()
+}
+
 func (c *App) onCtrlC(f func()) {
 	s := make(chan os.Signal, 1)
 	signal.Notify(s, os.Interrupt) // SIGINT
