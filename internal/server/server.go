@@ -238,6 +238,10 @@ func isAuthenticated(rc requestContext) bool {
 	return true
 }
 
+func (s *Server) GetRepository() repo.Repository {
+   return s.rep
+}
+
 func (s *Server) isAuthCookieValid(username, cookieValue string) bool {
 	tok, err := jwt.ParseWithClaims(cookieValue, &jwt.RegisteredClaims{}, func(t *jwt.Token) (interface{}, error) {
 		return s.authCookieSigningKey, nil
