@@ -7,7 +7,11 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net"
+	"net/http"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"testing"
@@ -15,30 +19,29 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
-	"runtime"
-
-	"net/http"
-
-	"net"
-
 	"github.com/kopia/kopia/cli"
 	"github.com/kopia/kopia/internal/logfile"
 	"github.com/kopia/kopia/tests/testenv"
 )
 
 var (
-	fLabel       string
-	nFlag        int
-	n0Flag       int
-	n1Flag       int
-	f0Size       int
-	nSeed        int64
-	fRootDir     string
-	fSnapDir     string
-	fRepoDir     string
-	nReplacement int
-	bCreateRepo  bool
-	nPassword    string
+	ppnms           []string
+	fLabel          string
+	nFlag           int
+	n0Flag          int
+	n1Flag          int
+	f0Size          int
+	nSeed           int64
+	fRootDir        string
+	fCacheDir       string
+	fSnapDir        string
+	fRepoDir        string
+	fLogDir         string
+	fProfileFormat3 string
+	fConfigPath     string
+	nReplacement    int
+	bCreateRepo     bool
+	nPassword       string
 )
 
 func init() {
@@ -49,11 +52,24 @@ func init() {
 	flag.IntVar(&f0Size, "stress_test.fsize0", 4*1024, "size of files to create in bytes")
 	flag.Int64Var(&nSeed, "stress_test.seed", time.Now().Unix(), "seed for tests")
 	flag.StringVar(&fRootDir, "stress_test.rootdir", "", "output directory for repo")
+	flag.StringVar(&fCacheDir, "stress_test.cachedir", "", "cache directory for repo")
 	flag.StringVar(&fSnapDir, "stress_test.snapdir", "", "snapshot directory for repo")
+	flag.StringVar(&fLogDir, "stress_test.logdir", "", "repository log directory")
 	flag.StringVar(&fRepoDir, "stress_test.repodir", "", "repository directory")
+	flag.StringVar(&fConfigPath, "stress_test.configfile", "", "configuration file path")
+	flag.StringVar(&fProfileFormat3, "stress_test.profileformat", "Unknown.%s.%s.%d", "prefix for profile dump")
 	flag.IntVar(&nReplacement, "stress_test.replacement", 0, "0: no repository, 1: replace, 2: skip, 3: add")
 	flag.BoolVar(&bCreateRepo, "stress_test.createrepo", false, "create repository")
 	flag.StringVar(&nPassword, "stress_test.repopass", "password", "password for the repository")
+
+	ppnms = []string{
+		"goroutine",    //    - stack traces of all current goroutines
+		"heap",         // - a sampling of memory allocations of live objects
+		"allocs",       // - a sampling of all past memory allocations
+		"threadcreate", // - stack traces that led to the creation of new OS threads
+		"block",        //     - stack traces that led to blocking on synchronization primitives
+		"mutex",        //        - stack traces of holders of contended mutexes
+	}
 }
 
 func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0 int, replacement int, root string) {
@@ -287,17 +303,25 @@ type testDirectories struct {
 	logPath    string
 }
 
-func newTestingDirectories(b *testing.B, rootdir, repodir, snapdir, logdir string) *testDirectories {
+func newTestingDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, configpath string) *testDirectories {
 	b.Helper()
 	q := &testDirectories{
-		rootPath: rootdir,
-		repoPath: repodir,
-		snapPath: snapdir,
-		logPath:  logdir,
+		rootPath:   rootdir,
+		repoPath:   repodir,
+		snapPath:   snapdir,
+		logPath:    logdir,
+		configPath: configpath,
 	}
 	q.rootPath = createRootDirectory(b, q.rootPath)
-	q.cachePath = q.rootPath + "/cache"
-	q.configPath = q.rootPath + "/kopia.config"
+	if q.cachePath == "" {
+		q.cachePath = q.rootPath + "/cache"
+	}
+	if q.configPath == "" {
+		q.configPath = q.rootPath + "/kopia.config"
+	}
+	if q.logPath == "" {
+		q.logPath = q.rootPath + "/logs"
+	}
 	if q.repoPath == "" {
 		q.repoPath = q.rootPath + "/repo"
 	}
@@ -312,6 +336,7 @@ func newTestingDirectories(b *testing.B, rootdir, repodir, snapdir, logdir strin
 	os.Mkdir(q.repoPath, dirMode)
 	os.Mkdir(q.snapPath, dirMode)
 	os.Mkdir(q.logPath, dirMode)
+	os.Mkdir(q.configPath, dirMode)
 	return q
 }
 
@@ -393,16 +418,20 @@ func BenchmarkBlockManager(b *testing.B) {
 	frootdir0 := fRootDir
 	fsnapdir0 := fSnapDir
 	frepodir0 := fRepoDir
+	fcachedir0 := fCacheDir
+	fconfigpath0 := fRepoDir
+	flogdir0 := fLogDir
+	fprofileformat3 := fProfileFormat3
 	replacement0 := nReplacement
 	createrepo0 := bCreateRepo
 	password := nPassword
 
-	b.Logf("file size = %d; n0 = %d; n1 = %d; label = %q; seed = %d; n = %d; root = %q; snap = %q, repo = %q, replacement = %d, createrepo = %t",
-		f0Size, n0, n1, flabel0, seed, n, frootdir0, fsnapdir0, frepodir0, replacement0, createrepo0)
+	b.Logf("file size = %d; n0 = %d; n1 = %d; label = %q; seed = %d; n = %d; root = %q; snap = %q, repo = %q, replacement = %d, createrepo = %t, cachedir = %q, configpath = %q; logdir = %q; profileprefix = %q",
+		f0Size, n0, n1, flabel0, seed, n, frootdir0, fsnapdir0, frepodir0, replacement0, createrepo0, fcachedir0, fconfigpath0, flogdir0, fprofileformat3)
 
 	rnd := rand.New(rand.NewSource(seed))
 
-	tdirs := newTestingDirectories(b, frootdir0, frepodir0, fsnapdir0, "")
+	tdirs := newTestingDirectories(b, frootdir0, frepodir0, fsnapdir0, flogdir0, fConfigPath)
 
 	if nReplacement != 0 {
 		b.Logf("creating reposiory files...")
@@ -420,19 +449,33 @@ func BenchmarkBlockManager(b *testing.B) {
 	kpapp := kingpin.New("test", "test")
 	logfile.Attach(app, kpapp)
 
-	//if createrepo0 {
-
-	//  s3 --bucket=BUCKET --access-key=ACCESS-KEY --secret-access-key=SECRET-ACCESS-KEY
-	//RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
-	//	"filesystem",
-	//	fmt.Sprintf("--path=%s", frepodir0),
-	//	fmt.Sprintf("--config-file=%s", configPath),
-	//	fmt.Sprintf("--password=%s", password),
-	//	fmt.Sprintf("--cache-directory=%s", cachePath),
-	//	fmt.Sprintf("--persist-credentials"))
-
 	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 	awsAccessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
+
+	//if createrepo0 {
+	//	// s3 --bucket=BUCKET --access-key=ACCESS-KEY --secret-access-key=SECRET-ACCESS-KEY
+	//	RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
+	//		"filesystem",
+	//		fmt.Sprintf("--path=%s", frepodir0),
+	//		fmt.Sprintf("--config-file=%s", fconfigpath0),
+	//		fmt.Sprintf("--password=%s", password),
+	//		fmt.Sprintf("--cache-directory=%s", fcachedir0),
+	//		fmt.Sprintf("--persist-credentials"))
+	//}
+
+	if createrepo0 {
+		// s3 --bucket=BUCKET --access-key=ACCESS-KEY --secret-access-key=SECRET-ACCESS-KEY
+		b.Logf("create repository ...")
+		RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
+			"s3",
+			fmt.Sprintf("--bucket=%s", tdirs.repoPath),
+			fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
+			fmt.Sprintf("--access-key=%s", awsAccessKeyId),
+			fmt.Sprintf("--config-file=%s", fconfigpath0),
+			fmt.Sprintf("--password=%s", password),
+			fmt.Sprintf("--cache-directory=%s", fcachedir0),
+			fmt.Sprintf("--persist-credentials"))
+	}
 
 	func() {
 		b.Logf("connecting to repository ...")
@@ -448,19 +491,19 @@ func BenchmarkBlockManager(b *testing.B) {
 
 		runtime.GC()
 	}()
-	//for j := range ppnms {
-	//	ppf0, err := os.Create(fmt.Sprintf(ppfn0, "connect", ppnms[j], 0))
-	//	if err != nil {
-	//		b.Fatalf("%v", err)
-	//	}
-	//	err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
-	//	if err != nil {
-	//		ppf0.Close()
-	//		b.Fatalf("%v", err)
-	//	}
-	//	ppf0.Close()
-	//}
-	//}
+
+	for j := range ppnms {
+		ppf0, err := os.Create(fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0))
+		if err != nil {
+			b.Fatalf("%v", err)
+		}
+		err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
+		if err != nil {
+			ppf0.Close()
+			b.Fatalf("%v", err)
+		}
+		ppf0.Close()
+	}
 
 	for i := 0; i < n; i++ {
 
@@ -478,9 +521,21 @@ func BenchmarkBlockManager(b *testing.B) {
 			RunKopiaSubcommand(b, ctx, app, kpapp, "snapshot", "create",
 				fmt.Sprintf("--config-file=%s", tdirs.configPath),
 				fmt.Sprintf("%s", tdirs.snapPath))
-
-			//runtime.GC()
+			runtime.GC()
 		}()
+
+		for j := range ppnms {
+			ppf0, err := os.Create(fmt.Sprintf(fprofileformat3, "connect", ppnms[j], i+1))
+			if err != nil {
+				b.Fatalf("%v", err)
+			}
+			err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
+			if err != nil {
+				ppf0.Close()
+				b.Fatalf("%v", err)
+			}
+			ppf0.Close()
+		}
 
 		b.Logf("%s", bs0)
 		b.Logf("%s", bs1)
@@ -489,7 +544,7 @@ func BenchmarkBlockManager(b *testing.B) {
 			func() {
 				b.Logf("altering filesystem ...")
 				TweakRepoFiles(b, rnd, n0, n1, fsize0, 0, tdirs.snapPath)
-				//runtime.GC()
+				runtime.GC()
 			}()
 
 		}
