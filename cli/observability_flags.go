@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/pprof"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -16,13 +18,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus/push"
 	"github.com/prometheus/common/expfmt"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 
+	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/repo"
 )
+
+// DirMode is the directory mode for output directories.
+const DirMode = 0o700
 
 //nolint:gochecknoglobals
 var metricsPushFormats = map[string]expfmt.Format{
@@ -44,8 +50,11 @@ type observabilityFlags struct {
 	metricsPushUsername string
 	metricsPushPassword string
 	metricsPushFormat   string
+	metricsOutputDir    string
+	outputFilePrefix    string
 
 	enableJaeger bool
+	otlpTrace    bool
 
 	stopPusher chan struct{}
 	pusherWG   sync.WaitGroup
@@ -65,7 +74,9 @@ func (c *observabilityFlags) setup(svc appServices, app *kingpin.Application) {
 	app.Flag("metrics-push-username", "Username for push gateway").Envar(svc.EnvName("KOPIA_METRICS_PUSH_USERNAME")).Hidden().StringVar(&c.metricsPushUsername)
 	app.Flag("metrics-push-password", "Password for push gateway").Envar(svc.EnvName("KOPIA_METRICS_PUSH_PASSWORD")).Hidden().StringVar(&c.metricsPushPassword)
 
-	app.Flag("enable-jaeger-collector", "Emit OpenTelemetry traces to Jaeger collector").Hidden().Envar(svc.EnvName("KOPIA_ENABLE_JAEGER_COLLECTOR")).BoolVar(&c.enableJaeger)
+	// tracing (OTLP) parameters
+	app.Flag("enable-jaeger-collector", "(DEPRECATED) Emit OpenTelemetry traces to Jaeger collector").Hidden().Envar(svc.EnvName("KOPIA_ENABLE_JAEGER_COLLECTOR")).BoolVar(&c.enableJaeger)
+	app.Flag("otlp-trace", "Send OpenTelemetry traces to OTLP collector using gRPC").Hidden().Envar(svc.EnvName("KOPIA_ENABLE_OTLP_TRACE")).BoolVar(&c.otlpTrace)
 
 	var formats []string
 
@@ -76,6 +87,27 @@ func (c *observabilityFlags) setup(svc appServices, app *kingpin.Application) {
 	sort.Strings(formats)
 
 	app.Flag("metrics-push-format", "Format to use for push gateway").Envar(svc.EnvName("KOPIA_METRICS_FORMAT")).Hidden().EnumVar(&c.metricsPushFormat, formats...)
+
+	app.Flag("metrics-directory", "Directory where the metrics should be saved when kopia exits. A file per process execution will be created in this directory").Hidden().StringVar(&c.metricsOutputDir)
+
+	app.PreAction(c.initialize)
+}
+
+func (c *observabilityFlags) initialize(ctx *kingpin.ParseContext) error {
+	if c.metricsOutputDir == "" {
+		return nil
+	}
+
+	// write to a separate file per command and process execution to avoid
+	// conflicts with previously created files
+	command := "unknown"
+	if cmd := ctx.SelectedCommand; cmd != nil {
+		command = strings.ReplaceAll(cmd.FullCommand(), " ", "-")
+	}
+
+	c.outputFilePrefix = clock.Now().Format("20060102-150405-") + command
+
+	return nil
 }
 
 func (c *observabilityFlags) startMetrics(ctx context.Context) error {
@@ -85,7 +117,16 @@ func (c *observabilityFlags) startMetrics(ctx context.Context) error {
 		return err
 	}
 
-	return c.maybeStartTraceExporter()
+	if c.metricsOutputDir != "" {
+		c.metricsOutputDir = filepath.Clean(c.metricsOutputDir)
+
+		// ensure the metrics output dir can be created
+		if err := os.MkdirAll(c.metricsOutputDir, DirMode); err != nil {
+			return errors.Wrapf(err, "could not create metrics output directory: %s", c.metricsOutputDir)
+		}
+	}
+
+	return c.maybeStartTraceExporter(ctx)
 }
 
 // Starts observability listener when a listener address is specified.
@@ -153,33 +194,36 @@ func (c *observabilityFlags) maybeStartMetricsPusher(ctx context.Context) error 
 	return nil
 }
 
-func (c *observabilityFlags) maybeStartTraceExporter() error {
-	if !c.enableJaeger {
+func (c *observabilityFlags) maybeStartTraceExporter(ctx context.Context) error {
+	if c.enableJaeger {
+		return errors.Errorf("Flag '--enable-jaeger-collector' is no longer supported, use '--otlp' instead. See https://github.com/kopia/kopia/pull/3264 for more information")
+	}
+
+	if !c.otlpTrace {
 		return nil
 	}
 
-	// Create the Jaeger exporter
-	se, err := jaeger.New(jaeger.WithCollectorEndpoint())
-	if err != nil {
-		return errors.Wrap(err, "unable to create Jaeger exporter")
+	// Create the OTLP exporter.
+	se := otlptracegrpc.NewUnstarted()
+
+	r := resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceNameKey.String("kopia"),
+		semconv.ServiceVersionKey.String(repo.BuildVersion),
+	)
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(se),
+		trace.WithResource(r),
+	)
+
+	if err := se.Start(ctx); err != nil {
+		return errors.Wrap(err, "unable to start OTLP exporter")
 	}
 
-	if se != nil {
-		r := resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("kopia"),
-			semconv.ServiceVersionKey.String(repo.BuildVersion),
-		)
+	otel.SetTracerProvider(tp)
 
-		tp := trace.NewTracerProvider(
-			trace.WithBatcher(se),
-			trace.WithResource(r),
-		)
-
-		otel.SetTracerProvider(tp)
-
-		c.traceProvider = tp
-	}
+	c.traceProvider = tp
 
 	return nil
 }
@@ -194,6 +238,14 @@ func (c *observabilityFlags) stopMetrics(ctx context.Context) {
 	if c.traceProvider != nil {
 		if err := c.traceProvider.Shutdown(ctx); err != nil {
 			log(ctx).Warnf("unable to shutdown trace provicer: %v", err)
+		}
+	}
+
+	if c.metricsOutputDir != "" {
+		filename := filepath.Join(c.metricsOutputDir, c.outputFilePrefix+".prom")
+
+		if err := prometheus.WriteToTextfile(filename, prometheus.DefaultGatherer); err != nil {
+			log(ctx).Warnf("unable to write metrics file '%s': %v", filename, err)
 		}
 	}
 }
