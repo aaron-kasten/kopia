@@ -11,6 +11,8 @@ import (
 )
 
 func requireFileSize(t *testing.T, path string, sz int64) {
+	t.Helper()
+
 	fi, err := os.Stat(path)
 	require.Nil(t, err)
 	require.Equal(t, sz, fi.Size())
@@ -55,7 +57,8 @@ func TestKats_ExportPEMsAsFiles(t *testing.T) {
 			files: []nameAndSize{
 				{
 					fnm: "valid_1.bin",
-					sz:  761},
+					sz:  761,
+				},
 			},
 		},
 	}
