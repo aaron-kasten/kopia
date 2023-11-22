@@ -18,11 +18,8 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
-<<<<<<< Updated upstream
-=======
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
->>>>>>> Stashed changes
 
 	"github.com/kopia/kopia/cli"
 	"github.com/kopia/kopia/internal/logfile"
@@ -42,11 +39,8 @@ var (
 	fSnapDir        string
 	fRepoDir        string
 	fLogDir         string
-<<<<<<< Updated upstream
-=======
 	fRepoBucket     string
 	fRepoFormat0    string
->>>>>>> Stashed changes
 	fProfileFormat3 string
 	fConfigPath     string
 	nReplacement    int
@@ -60,23 +54,16 @@ func init() {
 	flag.IntVar(&n0Flag, "stress_test.n0", 10, "number of first level directories")
 	flag.IntVar(&n1Flag, "stress_test.n1", 10, "number of second level directories")
 	flag.IntVar(&f0Size, "stress_test.fsize0", 4*1024, "size of files to create in bytes")
-<<<<<<< Updated upstream
-=======
 	//nolint:forbidigo
->>>>>>> Stashed changes
 	flag.Int64Var(&nSeed, "stress_test.seed", time.Now().Unix(), "seed for tests")
 	flag.StringVar(&fRootDir, "stress_test.rootdir", "", "output directory for repo")
 	flag.StringVar(&fCacheDir, "stress_test.cachedir", "", "cache directory for repo")
 	flag.StringVar(&fSnapDir, "stress_test.snapdir", "", "snapshot directory for repo")
 	flag.StringVar(&fLogDir, "stress_test.logdir", "", "repository log directory")
 	flag.StringVar(&fRepoDir, "stress_test.repodir", "", "repository directory")
-<<<<<<< Updated upstream
-	flag.StringVar(&fConfigPath, "stress_test.configfile", "", "configuration file path")
-=======
 	flag.StringVar(&fRepoBucket, "stress_test.repobucket", "", "repository bucket")
 	flag.StringVar(&fConfigPath, "stress_test.configfile", "", "configuration file path")
 	flag.StringVar(&fRepoFormat0, "stress_test.repoformat", "s3", "format of repository")
->>>>>>> Stashed changes
 	flag.StringVar(&fProfileFormat3, "stress_test.profileformat", "Unknown.%s.%s.%d", "prefix for profile dump")
 	flag.IntVar(&nReplacement, "stress_test.replacement", 0, "0: no repository, 1: replace, 2: skip, 3: add")
 	flag.BoolVar(&bCreateRepo, "stress_test.createrepo", false, "create repository")
@@ -92,12 +79,6 @@ func init() {
 	}
 }
 
-<<<<<<< Updated upstream
-func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0 int, replacement int, root string) {
-	b.Helper()
-	size := fsize0
-	bs := make([]byte, fsize0)
-=======
 //nolint:unparam
 func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement int, root string) {
 	b.Helper()
@@ -105,80 +86,49 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 	size := fsize0
 	bs := make([]byte, fsize0)
 
->>>>>>> Stashed changes
 	_, err := rnd.Read(bs)
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
-<<<<<<< Updated upstream
-	for i0 := 0; i0 < n0; i0++ {
-		dname0 := fmt.Sprintf("dir-%d", i0)
-=======
 
 	for i0 := 0; i0 < n0; i0++ {
 		dname0 := fmt.Sprintf("dir-%d", i0)
 
->>>>>>> Stashed changes
 		err = os.Mkdir(fmt.Sprintf("%s/%s", root, dname0), os.FileMode(0o775))
 		if err != nil {
 			b.Fatalf("%v", err)
 		}
-<<<<<<< Updated upstream
-		for i1 := 0; i1 < n1; i1++ {
-			dname1 := fmt.Sprintf("dir-%d-%d", i0, i1)
-=======
 
 		for i1 := 0; i1 < n1; i1++ {
 			dname1 := fmt.Sprintf("dir-%d-%d", i0, i1)
 
->>>>>>> Stashed changes
 			err = os.Mkdir(fmt.Sprintf("%s/%s/%s", root, dname0, dname1), os.FileMode(0o775))
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 			var (
 				fname1 string
 				fpath1 string
 			)
-<<<<<<< Updated upstream
-			fname1 = fmt.Sprintf("file-%d-%d", i0, i1)
-			fpath1 = fmt.Sprintf("%s/%s/%s/%s", root, dname0, dname1, fname1)
-=======
 
 			fname1 = fmt.Sprintf("file-%d-%d", i0, i1)
 			fpath1 = fmt.Sprintf("%s/%s/%s/%s", root, dname0, dname1, fname1)
 
->>>>>>> Stashed changes
 			_, err := os.Stat(fpath1)
 			if err != nil && !os.IsNotExist(err) {
 				b.Fatalf("%v", err)
 			}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 			f, err := os.Create(fpath1)
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 			n0, err := rnd.Read(bs)
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
-<<<<<<< Updated upstream
-			if n0 != size {
-				b.Fatalf("unexpected size")
-			}
-			buf := bytes.NewBuffer(bs)
-=======
 
 			if n0 != size {
 				b.Fatalf("unexpected size")
@@ -186,15 +136,11 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 
 			buf := bytes.NewBuffer(bs)
 
->>>>>>> Stashed changes
 			n1, err := io.Copy(f, buf)
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 			if n1 != int64(size) {
 				b.Fatalf("unexpected size")
 			}
@@ -202,96 +148,21 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 	}
 }
 
-<<<<<<< Updated upstream
-func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0 int, replacement int, root string) {
-	b.Helper()
-	bs := make([]byte, fsize0)
-=======
 //nolint:cyclop,gocyclo
 func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement int, root string) {
 	b.Helper()
 
 	bs := make([]byte, fsize0)
 
->>>>>>> Stashed changes
 	_, err := rnd.Read(bs)
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 	deln := 0
 	errn := 0
 	modn := 0
 	addn := 0
-<<<<<<< Updated upstream
-	for i0 := 0; i0 < n0; i0++ {
-		dname0 := fmt.Sprintf("dir-%d", i0)
-		dpath0 := fmt.Sprintf("%s/%s", root, dname0)
-		if err != nil {
-			b.Fatalf("%v", err)
-		}
-		for i1 := 0; i1 < n1; i1++ {
-			dname1 := fmt.Sprintf("dir-%d-%d", i0, i1)
-			dpath1 := fmt.Sprintf("%s/%s", dpath0, dname1)
-			if err != nil {
-				errn++
-				b.Fatalf("%v", err)
-			}
-			fname1 := fmt.Sprintf("file-%d-%d", i0, i1)
-			fpath1 := fmt.Sprintf("%s/%s", dpath1, fname1)
-			var what = rnd.Intn(5)
-			switch what {
-			case 0:
-				_, err := os.Stat(fpath1)
-				if err != nil && !os.IsNotExist(err) {
-					errn++
-					b.Fatalf("%v", err)
-				}
-				if err == nil {
-					errn++
-					continue
-				}
-				// create
-				dname1 := fmt.Sprintf("dir-%d-%d", i0, i1)
-				err = os.Mkdir(fmt.Sprintf("%s/%s/%s", root, dname0, dname1), os.FileMode(0o775))
-				if err != nil {
-					errn++
-					b.Fatalf("%v", err)
-				}
-				fname1 := fmt.Sprintf("file-%d-%d", i0, i1)
-				f, err := os.Create(fmt.Sprintf("%s/%s/%s/%s", root, dname0, dname1, fname1))
-				if err != nil {
-					errn++
-					b.Fatalf("%v", err)
-				}
-				n0, err := rnd.Read(bs)
-				if err != nil {
-					f.Close()
-					errn++
-					b.Fatalf("%v", err)
-				}
-				if n0 != fsize0 {
-					f.Close()
-					errn++
-					b.Fatalf("unexpected size")
-				}
-				buf := bytes.NewBuffer(bs)
-				n1, err := io.Copy(f, buf)
-				if err != nil {
-					f.Close()
-					errn++
-					b.Fatalf("%v", err)
-				}
-				if n1 != int64(fsize0) {
-					f.Close()
-					errn++
-					b.Fatalf("unexpected size")
-				}
-				f.Close()
-=======
 
 	for i0 := 0; i0 < n0; i0++ {
 		dname0 := fmt.Sprintf("dir-%d", i0)
@@ -367,22 +238,15 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				}
 
 				_ = f.Close()
->>>>>>> Stashed changes
 				addn++
 			case 1:
 				// delete
 				dname1 = fmt.Sprintf("dir-%d-%d", i0, i1)
-<<<<<<< Updated upstream
-				err := os.RemoveAll(fmt.Sprintf("%s/%s/%s", root, dname0, dname1))
-				if err != nil {
-					errn++
-=======
 
 				err := os.RemoveAll(fmt.Sprintf("%s/%s/%s", root, dname0, dname1))
 				if err != nil {
 					errn++
 
->>>>>>> Stashed changes
 					b.Fatalf("%v", err)
 				}
 				deln++
@@ -392,51 +256,6 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				k1 := rnd.Intn(fsize0)
 				imin := k0
 				imax := k1
-<<<<<<< Updated upstream
-				if imin > imax {
-					imin, imax = imax, imin
-				}
-				_, err := os.Stat(fpath1)
-				if err != nil && !os.IsNotExist(err) {
-					errn++
-					b.Fatalf("%v", err)
-				}
-				if err == nil {
-					continue
-				}
-				bs := make([]byte, imax-imin)
-				_, err = rnd.Read(bs)
-				if err != nil {
-					errn++
-					b.Fatalf("%v", err)
-				}
-				// create
-				dname1 := fmt.Sprintf("dir-%d-%d", i0, i1)
-				err = os.Mkdir(fmt.Sprintf("%s/%s/%s", root, dname0, dname1), os.FileMode(0o775))
-				if err != nil {
-					errn++
-					b.Fatalf("%v", err)
-				}
-				fname1 := fmt.Sprintf("file-%d-%d", i0, i1)
-				f, err := os.Create(fmt.Sprintf("%s/%s/%s/%s", root, dname0, dname1, fname1))
-				if err != nil {
-					errn++
-					b.Fatalf("%v", err)
-				}
-				_, err = f.Seek(int64(imin), 0)
-				if err != nil {
-					f.Close()
-					errn++
-					b.Fatalf("%v", err)
-				}
-				_, err = f.Write(bs)
-				if err != nil {
-					f.Close()
-					errn++
-					b.Fatalf("%v", err)
-				}
-				f.Close()
-=======
 
 				if imin > imax {
 					imin, imax = imax, imin
@@ -498,7 +317,6 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				}
 
 				_ = f.Close()
->>>>>>> Stashed changes
 				modn++
 			}
 		}
@@ -506,19 +324,6 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 	b.Logf("deln = %d, errn = %d, modn = %d, addn = %d", deln, errn, modn, addn)
 }
 
-<<<<<<< Updated upstream
-func RunKopiaSubcommand(b *testing.B, ctx context.Context, app *cli.App, kpapp *kingpin.Application, cmd ...string) {
-	bs0 := &bytes.Buffer{}
-	bs0.Grow(1024 * 64)
-	bs1 := &bytes.Buffer{}
-	bs1.Grow(1024 * 64)
-
-	stdout, stderr, wait, _ := app.RunSubcommand(ctx, kpapp, strings.NewReader(""), cmd)
-	bs0.Reset()
-	bs1.Reset()
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-=======
 // RunKopiaSubcommand run a kopia sub-command in process.
 func RunKopiaSubcommand(b *testing.B, ctx context.Context, app *cli.App, kpapp *kingpin.Application, cmd ...string) {
 	b.Helper()
@@ -534,26 +339,15 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, app *cli.App, kpapp *
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
->>>>>>> Stashed changes
 	go func() {
 		defer wg.Done()
 		io.Copy(bs0, stdout)
 	}()
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 	go func() {
 		defer wg.Done()
 		io.Copy(bs1, stderr)
 	}()
-<<<<<<< Updated upstream
-	err := wait()
-	wg.Wait()
-	if err != nil {
-		b.Fatalf("%v", err)
-	}
-=======
 
 	err := wait()
 
@@ -563,7 +357,6 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, app *cli.App, kpapp *
 		b.Fatalf("cannot run subcommand: %s %v", cmd, err)
 	}
 
->>>>>>> Stashed changes
 	b.Logf("%s", bs0)
 	b.Logf("%s", bs1)
 }
@@ -577,10 +370,6 @@ type testDirectories struct {
 	logPath    string
 }
 
-<<<<<<< Updated upstream
-func newTestingDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, configpath string) *testDirectories {
-	b.Helper()
-=======
 //nolint:unparam
 func checkBucket(b *testing.B, ctx context.Context, endpoint, accessKeyID, secretAccessKey, bucketName string, useSSL bool) (bool, error) {
 	b.Helper()
@@ -758,7 +547,6 @@ func removeObjects(b *testing.B, ctx context.Context, endpoint, accessKeyID, sec
 func newTestingDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, configpath string) *testDirectories {
 	b.Helper()
 
->>>>>>> Stashed changes
 	q := &testDirectories{
 		rootPath:   rootdir,
 		repoPath:   repodir,
@@ -766,33 +554,6 @@ func newTestingDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, conf
 		logPath:    logdir,
 		configPath: configpath,
 	}
-<<<<<<< Updated upstream
-	q.rootPath = createRootDirectory(b, q.rootPath)
-	if q.cachePath == "" {
-		q.cachePath = q.rootPath + "/cache"
-	}
-	if q.configPath == "" {
-		q.configPath = q.rootPath + "/kopia.config"
-	}
-	if q.logPath == "" {
-		q.logPath = q.rootPath + "/logs"
-	}
-	if q.repoPath == "" {
-		q.repoPath = q.rootPath + "/repo"
-	}
-	if q.snapPath == "" {
-		q.snapPath = q.rootPath + "/snap"
-	}
-	if q.logPath == "" {
-		q.logPath = q.rootPath + "/logs"
-	}
-	dirMode := os.FileMode(0o775)
-	os.Mkdir(q.cachePath, dirMode)
-	os.Mkdir(q.repoPath, dirMode)
-	os.Mkdir(q.snapPath, dirMode)
-	os.Mkdir(q.logPath, dirMode)
-	os.Mkdir(q.configPath, dirMode)
-=======
 
 	q.rootPath = createRootDirectory(b, q.rootPath)
 
@@ -827,25 +588,18 @@ func newTestingDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, conf
 	_ = os.Mkdir(q.logPath, dirMode)
 	_ = os.Mkdir(q.configPath, dirMode)
 
->>>>>>> Stashed changes
 	return q
 }
 
 func createRootDirectory(b *testing.B, rootdir string) string {
 	b.Helper()
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 	if rootdir != "" {
 		fst, err := os.Stat(rootdir)
 		if err != nil {
 			b.Fatalf("%v", err)
 		}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 		if !fst.IsDir() {
 			b.Fatalf("must be a directory")
 		}
@@ -856,13 +610,6 @@ func createRootDirectory(b *testing.B, rootdir string) string {
 			b.Fatalf("ERROR: %v", err)
 		}
 	}
-<<<<<<< Updated upstream
-	return rootdir
-}
-
-func startFakeTimeServer(ctx context.Context, b *testing.B, t0 time.Time, factor float64) func() {
-	fts := testenv.NewFakeTimeServer(func() time.Time {
-=======
 
 	return rootdir
 }
@@ -872,7 +619,6 @@ func startFakeTimeServer(b *testing.B, ctx context.Context, t0 time.Time, factor
 
 	fts := testenv.NewFakeTimeServer(func() time.Time {
 		//nolint:forbidigo
->>>>>>> Stashed changes
 		t1 := time.Now()
 		t2 := t0.Add(time.Duration(float64(t1.Sub(t0)) * factor))
 		return t2
@@ -882,25 +628,16 @@ func startFakeTimeServer(b *testing.B, ctx context.Context, t0 time.Time, factor
 
 	server := &http.Server{Addr: ":0", Handler: fts}
 	addr := server.Addr
-<<<<<<< Updated upstream
-	if addr == "" {
-		addr = ":http"
-	}
-=======
 
 	if addr == "" {
 		addr = ":http"
 	}
 
->>>>>>> Stashed changes
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		b.Fatalf("%v", err)
 	}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 	go func() {
 		err = server.Serve(ln)
 		if err != nil {
@@ -908,11 +645,7 @@ func startFakeTimeServer(b *testing.B, ctx context.Context, t0 time.Time, factor
 		}
 	}()
 
-<<<<<<< Updated upstream
-	os.Setenv("KOPIA_FAKE_CLOCK_ENDPOINT", ln.Addr().String())
-=======
 	b.Setenv("KOPIA_FAKE_CLOCK_ENDPOINT", ln.Addr().String())
->>>>>>> Stashed changes
 	b.Logf("time server listening on %q", os.Getenv("KOPIA_FAKE_CLOCK_ENDPOINT"))
 
 	return func() {
@@ -920,21 +653,6 @@ func startFakeTimeServer(b *testing.B, ctx context.Context, t0 time.Time, factor
 	}
 }
 
-<<<<<<< Updated upstream
-func BenchmarkBlockManager(b *testing.B) {
-
-	ctx := context.Background()
-
-	firstNow := time.Now()
-
-	shutdownfn := startFakeTimeServer(ctx, b, firstNow, 60.0) // 60 ms for every 1 ms
-	defer shutdownfn()
-
-	bs0 := &bytes.Buffer{}
-	bs0.Grow(1024 * 64)
-	bs1 := &bytes.Buffer{}
-	bs1.Grow(1024 * 64)
-=======
 // BenchmarkBlockManager benchmark.
 //
 //nolint:gocyclo
@@ -949,7 +667,6 @@ func BenchmarkBlockManager(b *testing.B) {
 
 	bs0 := bytes.NewBuffer(make([]byte, 1024*64))
 	bs1 := bytes.NewBuffer(make([]byte, 1024*64))
->>>>>>> Stashed changes
 
 	flag.Parse()
 
@@ -959,32 +676,21 @@ func BenchmarkBlockManager(b *testing.B) {
 	flabel0 := fLabel
 	seed := nSeed
 	n := nFlag
-<<<<<<< Updated upstream
-=======
 	frepoformat0 := fRepoFormat0
->>>>>>> Stashed changes
 	frootdir0 := fRootDir
 	fsnapdir0 := fSnapDir
 	frepodir0 := fRepoDir
 	fcachedir0 := fCacheDir
 	fconfigpath0 := fRepoDir
 	flogdir0 := fLogDir
-<<<<<<< Updated upstream
-=======
 	frepobucket0 := fRepoBucket
->>>>>>> Stashed changes
 	fprofileformat3 := fProfileFormat3
 	replacement0 := nReplacement
 	createrepo0 := bCreateRepo
 	password := nPassword
 
-<<<<<<< Updated upstream
-	b.Logf("file size = %d; n0 = %d; n1 = %d; label = %q; seed = %d; n = %d; root = %q; snap = %q, repo = %q, replacement = %d, createrepo = %t, cachedir = %q, configpath = %q; logdir = %q; profileprefix = %q",
-		f0Size, n0, n1, flabel0, seed, n, frootdir0, fsnapdir0, frepodir0, replacement0, createrepo0, fcachedir0, fconfigpath0, flogdir0, fprofileformat3)
-=======
 	b.Logf("file size = %d; n0 = %d; n1 = %d; label = %q; seed = %d; n = %d; repoformat = %q, rootdir = %q; snapdir = %q, repodir = %q, bucket = %q, replacement = %d, createrepo = %t, cachedir = %q, configpath = %q; logdir = %q; profileprefix = %q",
 		f0Size, n0, n1, flabel0, seed, n, frepoformat0, frootdir0, fsnapdir0, frepodir0, frepobucket0, replacement0, createrepo0, fcachedir0, fconfigpath0, flogdir0, fprofileformat3)
->>>>>>> Stashed changes
 
 	rnd := rand.New(rand.NewSource(seed))
 
@@ -1007,37 +713,11 @@ func BenchmarkBlockManager(b *testing.B) {
 	logfile.Attach(app, kpapp)
 
 	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-<<<<<<< Updated upstream
-	awsAccessKeyId := os.Getenv("AWS_ACCESS_KEY_ID")
-
-	//if createrepo0 {
-	//	// s3 --bucket=BUCKET --access-key=ACCESS-KEY --secret-access-key=SECRET-ACCESS-KEY
-	//	RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
-	//		"filesystem",
-	//		fmt.Sprintf("--path=%s", frepodir0),
-	//		fmt.Sprintf("--config-file=%s", fconfigpath0),
-	//		fmt.Sprintf("--password=%s", password),
-	//		fmt.Sprintf("--cache-directory=%s", fcachedir0),
-	//		fmt.Sprintf("--persist-credentials"))
-	//}
-=======
 	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
->>>>>>> Stashed changes
 
 	if createrepo0 {
 		// s3 --bucket=BUCKET --access-key=ACCESS-KEY --secret-access-key=SECRET-ACCESS-KEY
 		b.Logf("create repository ...")
-<<<<<<< Updated upstream
-		RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
-			"s3",
-			fmt.Sprintf("--bucket=%s", tdirs.repoPath),
-			fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
-			fmt.Sprintf("--access-key=%s", awsAccessKeyId),
-			fmt.Sprintf("--config-file=%s", fconfigpath0),
-			fmt.Sprintf("--password=%s", password),
-			fmt.Sprintf("--cache-directory=%s", fcachedir0),
-			fmt.Sprintf("--persist-credentials"))
-=======
 
 		switch frepoformat0 {
 		case "s3":
@@ -1087,22 +767,10 @@ func BenchmarkBlockManager(b *testing.B) {
 				fmt.Sprintf("--cache-directory=%s", fcachedir0),
 				"--persist-credentials")
 		}
->>>>>>> Stashed changes
 	}
 
 	func() {
 		b.Logf("connecting to repository ...")
-<<<<<<< Updated upstream
-		RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "connect",
-			"s3",
-			fmt.Sprintf("--bucket=%s", tdirs.repoPath),
-			fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
-			fmt.Sprintf("--access-key=%s", awsAccessKeyId),
-			fmt.Sprintf("--config-file=%s", tdirs.configPath),
-			fmt.Sprintf("--password=%s", password),
-			fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
-			fmt.Sprintf("--persist-credentials"))
-=======
 
 		switch frepoformat0 {
 		case "s3":
@@ -1124,7 +792,6 @@ func BenchmarkBlockManager(b *testing.B) {
 				fmt.Sprintf("--cache-directory=%s", fcachedir0),
 				"--persist-credentials")
 		}
->>>>>>> Stashed changes
 
 		runtime.GC()
 	}()
@@ -1134,27 +801,17 @@ func BenchmarkBlockManager(b *testing.B) {
 		if err != nil {
 			b.Fatalf("%v", err)
 		}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 		err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
 		if err != nil {
 			ppf0.Close()
 			b.Fatalf("%v", err)
 		}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 		ppf0.Close()
 	}
 
 	for i := 0; i < n; i++ {
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
 		func() {
 			app = cli.NewApp()
 			app.AdvancedCommands = "enabled"
@@ -1166,16 +823,10 @@ func BenchmarkBlockManager(b *testing.B) {
 			logfile.Attach(app, kpapp)
 
 			b.Logf("snapshotting filesystem ...")
-<<<<<<< Updated upstream
-			RunKopiaSubcommand(b, ctx, app, kpapp, "snapshot", "create",
-				fmt.Sprintf("--config-file=%s", tdirs.configPath),
-				fmt.Sprintf("%s", tdirs.snapPath))
-=======
 
 			RunKopiaSubcommand(b, ctx, app, kpapp, "snapshot", "create",
 				fmt.Sprintf("--config-file=%s", tdirs.configPath),
 				tdirs.snapPath)
->>>>>>> Stashed changes
 			runtime.GC()
 		}()
 
@@ -1184,19 +835,13 @@ func BenchmarkBlockManager(b *testing.B) {
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 			err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
 			if err != nil {
 				ppf0.Close()
 				b.Fatalf("%v", err)
 			}
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 			ppf0.Close()
 		}
 
@@ -1209,12 +854,6 @@ func BenchmarkBlockManager(b *testing.B) {
 				TweakRepoFiles(b, rnd, n0, n1, fsize0, 0, tdirs.snapPath)
 				runtime.GC()
 			}()
-<<<<<<< Updated upstream
-
 		}
-
-=======
-		}
->>>>>>> Stashed changes
 	}
 }
