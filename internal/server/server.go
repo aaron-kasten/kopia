@@ -239,7 +239,7 @@ func isAuthenticated(rc requestContext) bool {
 }
 
 func (s *Server) GetRepository() repo.Repository {
-   return s.rep
+	return s.rep
 }
 
 func (s *Server) isAuthCookieValid(username, cookieValue string) bool {
@@ -565,10 +565,6 @@ func (s *Server) endUpload(ctx context.Context, src snapshot.SourceInfo) {
 
 	// notify one of the waiters
 	s.parallelSnapshotsChanged.Signal()
-}
-
-func (s *Server) GetRepository() repo.Repository {
-	return s.rep
 }
 
 // SetRepository sets the repository (nil is allowed and indicates server that is not
