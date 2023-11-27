@@ -189,6 +189,10 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 
 			what := rnd.Intn(5)
 
+			// create file fname1 at dpath1
+			fname1 := fmt.Sprintf("file-%d-%d", i0, i1)
+			fpath1 := fmt.Sprintf("%s/%s", dpath1, fname1)
+
 			switch what {
 			case 0:
 				err = os.Mkdir(dpath1, os.FileMode(0o775))
@@ -202,59 +206,48 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 					b.Fatalf("%v", err)
 				}
 
-				// create file fname1 at dpath1
-				fname1 := fmt.Sprintf("file-%d-%d", i0, i1)
-				fpath1 := fmt.Sprintf("%s/%s", dpath1, fname1)
-
 				b.Logf("target file to create %q..", fpath1)
 
-				_, err = os.Stat(fpath1)
-				if err == nil {
+				var f *os.File
+
+				f, err = os.OpenFile(fpath1, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o644)
+				if os.IsExist(err) {
 					// file already exists
 					errn++
 
 					b.Logf("file %q already exists.", fpath1)
 
 					continue
-				}
-
-				var f *os.File
-
-				f, err = os.Create(fpath1)
-				if err != nil {
+				} else if err != nil {
 					errn++
 
 					b.Fatalf("%v", err)
 				}
 
 				// fill the file with random data
-				var n2 int64
-
-				n2, err = io.CopyN(f, rnd, int64(fsize0))
+				_, err = io.CopyN(f, rnd, int64(fsize0))
 				if err != nil {
-					_ = f.Close()
 					errn++
+
+					err1 := f.Close()
+					if err1 != nil {
+						b.Fatalf("close: %v", err1)
+					}
 
 					b.Fatalf("%v", err)
 				}
 
-				if n2 != int64(fsize0) {
-					_ = f.Close()
-					errn++
-
-					b.Fatalf("unexpected size")
+				err1 := f.Close()
+				if err1 != nil {
+					b.Fatalf("close: %v", err1)
 				}
 
-				_ = f.Close()
 				addn++
 			case 1:
-				// delete
-				dname1 = fmt.Sprintf("dir-%d-%d", i0, i1)
-				dpath1 = fmt.Sprintf("%s/%s/%s", root, dname0, dname1)
+				// remove file
+				b.Logf("target file to delete %q..", fpath1)
 
-				b.Logf("removing directory %q", dpath1)
-
-				err = os.RemoveAll(dpath1)
+				err = os.Remove(fpath1)
 				if err != nil {
 					errn++
 
@@ -263,60 +256,46 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 
 				deln++
 			case 2:
-				// modify
-				// fill a random buffer
-				bs := make([]byte, fsize0)
-
-				_, err := rnd.Read(bs)
-				if err != nil {
-					b.Fatalf("%v", err)
-				}
-
-				fname1 := fmt.Sprintf("file-%d-%d", i0, i1)
-				fpath1 := fmt.Sprintf("%s/%s/%s/%s", root, dname0, dname1, fname1)
 
 				k0 := rnd.Intn(fsize0)
 				k1 := rnd.Intn(fsize0)
 				imin := k0
 				imax := k1
 
+				// reorder the two
 				if imin > imax {
 					imin, imax = imax, imin
 				}
 
-				// modify only ... its an error if the file does not exist
-				_, err = os.Stat(fpath1)
-				if os.IsNotExist(err) {
-					errn++
+				bs := make([]byte, imax-imin)
 
-					continue
+				_, err = rnd.Read(bs)
+				if err != nil {
+					b.Fatalf("%v", err)
 				}
-
-				bs = make([]byte, imax-imin)
 
 				var f *os.File
 
 				f, err = os.OpenFile(fpath1, os.O_RDWR, 0o644)
 				if err != nil {
-					_ = f.Close()
+					err1 := f.Close()
+					if err1 != nil {
+						b.Fatalf("close: %v", err1)
+					}
+
 					errn++
 
 					b.Fatalf("cannot open file %q", fpath1)
 				}
 
-				// seek to the position
-				_, err = f.Seek(int64(imin), 0)
-				if err != nil {
-					_ = f.Close()
-					errn++
-
-					b.Fatalf("cannot seek in file %q: %v", fpath1, err)
-				}
-
 				// write the data
-				_, err = f.Write(bs)
+				_, err = f.WriteAt(bs, int64(imin))
 				if err != nil {
-					_ = f.Close()
+					err1 := f.Close()
+					if err1 != nil {
+						b.Fatalf("close: %v", err1)
+					}
+
 					errn++
 
 					b.Fatalf("cannot write in file %q: %v", fpath1, err)
