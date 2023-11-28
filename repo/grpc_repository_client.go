@@ -16,9 +16,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/internal/ctxutil"
+	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/internal/gather"
 	apipb "github.com/kopia/kopia/internal/grpcapi"
 	"github.com/kopia/kopia/internal/retry"
@@ -106,7 +106,9 @@ type grpcInnerSession struct {
 	wg sync.WaitGroup
 }
 
+// CloseDebug release debugging resources.
 func (r *grpcRepositoryClient) CloseDebug(ctx context.Context) {
+	// use grace from ctx.
 	debug.StopProfileBuffers(ctx)
 }
 

@@ -18,9 +18,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tg123/go-htpasswd"
 
-	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/ctxutil"
+	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/internal/server"
 	"github.com/kopia/kopia/repo"
 )
@@ -220,6 +220,7 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 		rep := srv.GetRepository()
 		if rep != nil {
+			//nolint:errcheck
 			rep.Close(ctx)
 		}
 
@@ -276,12 +277,14 @@ func (c *commandServerStart) run(ctx context.Context) error {
 	return errors.Wrap(srv.SetRepository(ctx, nil), "error setting active repository")
 }
 
-// shutdownServer shutdown http server and close the repository
+// shutdownServer shutdown http server and close the repository.
 func shutdownServer(ctx context.Context, httpServer *http.Server, srv *server.Server) {
 	log(ctx).Infof("Shutting down...")
+
 	if serr := httpServer.Shutdown(ctx); serr != nil {
 		log(ctx).Debugf("unable to shut down http server: %v", serr)
 	}
+
 	rep := srv.GetRepository()
 	if rep != nil {
 		if rerr := rep.Close(ctx); rerr != nil {

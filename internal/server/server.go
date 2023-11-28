@@ -238,10 +238,6 @@ func isAuthenticated(rc requestContext) bool {
 	return true
 }
 
-func (s *Server) GetRepository() repo.Repository {
-	return s.rep
-}
-
 func (s *Server) isAuthCookieValid(username, cookieValue string) bool {
 	tok, err := jwt.ParseWithClaims(cookieValue, &jwt.RegisteredClaims{}, func(t *jwt.Token) (interface{}, error) {
 		return s.authCookieSigningKey, nil
@@ -565,6 +561,12 @@ func (s *Server) endUpload(ctx context.Context, src snapshot.SourceInfo) {
 
 	// notify one of the waiters
 	s.parallelSnapshotsChanged.Signal()
+}
+
+// GetRepository get the repository for this server.  This is used to ensure
+// repositories are closed on shutdown.  Also symmetric to SetRepository.
+func (s *Server) GetRepository() repo.Repository {
+	return s.rep
 }
 
 // SetRepository sets the repository (nil is allowed and indicates server that is not

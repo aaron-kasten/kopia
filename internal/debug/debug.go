@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kopia/kopia/repo/logging"
 )
@@ -26,14 +27,20 @@ type ProfileName string
 
 const (
 	pair = 2
+	// PPROFDumpTimeout when dumping PPROF data, set an upper bound on the time it can take to log.
+	PPROFDumpTimeout = 15 * time.Second
+	// KiB = 1024B
+	KiB = 1024
 )
 
 const (
 	// DefaultDebugProfileRate default sample/data fraction for profile sample collection rates (1/x, where x is the
 	// data fraction sample rate).
 	DefaultDebugProfileRate = 100
-	// DefaultDebugProfileDumpBufferSizeB default size of the pprof output buffer.
-	DefaultDebugProfileDumpBufferSizeB = 1 << 17
+	// DefaultDebugProfileDumpBufferSizeKiB default size of the pprof output buffer in KiB (128KiB).
+	DefaultDebugProfileDumpBufferSizeKiB = 1 << 7
+	// DefaultDebugProfileDumpBufferSizeB default size of the pprof output buffer in B (128KiB).
+	DefaultDebugProfileDumpBufferSizeB = DefaultDebugProfileDumpBufferSizeKiB * KiB
 )
 
 const (
@@ -208,8 +215,6 @@ func StartProfileBuffers(ctx context.Context) {
 		return
 	}
 
-	bufSizeB := DefaultDebugProfileDumpBufferSizeB
-
 	// look for matching services.  "*" signals all services for profiling
 	log(ctx).Debug("configuring profile buffers")
 
@@ -217,7 +222,7 @@ func StartProfileBuffers(ctx context.Context) {
 	pprofConfigs.mu.Lock()
 	defer pprofConfigs.mu.Unlock()
 
-	pprofConfigs.pcm = parseProfileConfigs(bufSizeB, ppconfigs)
+	pprofConfigs.pcm = parseProfileConfigs(DefaultDebugProfileDumpBufferSizeB, ppconfigs)
 
 	// profiling rates need to be set before starting profiling
 	setupProfileFractions(ctx, pprofConfigs.pcm)
@@ -234,10 +239,11 @@ func StartProfileBuffers(ctx context.Context) {
 }
 
 // DumpPem dump a PEM version of the byte slice, bs, into writer, wrt.
-func DumpPem(bs []byte, types string, wrt *os.File) error {
+func DumpPem(bs []byte, types string, wrt io.Writer) error {
 	// err0 for background process
 	var err0 error
 
+	// PEM block in source form for output
 	blk := &pem.Block{
 		Type:  types,
 		Bytes: bs,
@@ -285,7 +291,7 @@ func DumpPem(bs []byte, types string, wrt *os.File) error {
 
 	// if file does not end in newline, then output one
 	if errors.Is(err1, io.EOF) {
-		_, err2 = wrt.WriteString("\n")
+		_, err2 = wrt.Write([]byte("\n"))
 		if err2 != nil {
 			return fmt.Errorf("could not write PEM: %w", err2)
 		}

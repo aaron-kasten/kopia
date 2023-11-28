@@ -9,9 +9,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/apiclient"
 	"github.com/kopia/kopia/internal/clock"
+	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/internal/gather"
 	"github.com/kopia/kopia/internal/remoterepoapi"
 	"github.com/kopia/kopia/repo/compression"
@@ -40,7 +40,9 @@ type apiServerRepository struct {
 	*immutableServerRepositoryParameters // immutable parameters
 }
 
+// CloseDebug release debugging resources.
 func (r *apiServerRepository) CloseDebug(ctx context.Context) {
+	// use grace from ctx.
 	debug.StopProfileBuffers(ctx)
 }
 
@@ -352,7 +354,10 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 	}
 
 	rr.omgr = omgr
+
 	par.registerEarlyCloseFunc(func(ctx context.Context) error {
+		// release debugging resources as part of early debug.  This leaves the debugger
+		// a chance to use runtime resources before they too are released
 		rr.CloseDebug(ctx)
 		return nil
 	})
