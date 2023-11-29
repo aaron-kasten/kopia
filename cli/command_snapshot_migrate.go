@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/fs"
 	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/repo"
@@ -83,9 +84,10 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 		defer canfn()
 
 		mu.Lock()
+		defer mu.Unlock()
+
 		// debounce. (consider using sync.Once)
 		if canceled {
-			mu.Unlock()
 			return
 		}
 
@@ -95,7 +97,6 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 			log(ctx).Infof("canceling active uploader for %v", s)
 			u.Cancel()
 		}
-		mu.Unlock()
 
 		debug.StopProfileBuffers(ctx)
 	})
@@ -128,14 +129,17 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 	for _, s := range sources {
 		// start a new uploader unless already canceled
 		mu.Lock()
+
 		if canceled {
 			mu.Unlock()
+
 			break
 		}
 
 		uploader := snapshotfs.NewUploader(destRepo)
 		uploader.Progress = c.svc.getProgress()
 		activeUploaders[s] = uploader
+
 		mu.Unlock()
 
 		wg.Add(1)

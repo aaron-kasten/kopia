@@ -9,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel"
 
+	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/internal/crypto"
 	"github.com/kopia/kopia/internal/debug"
