@@ -7,7 +7,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/fs"
 	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/repo"

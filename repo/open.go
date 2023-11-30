@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/scrypt"
 
-	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/cache"
 	"github.com/kopia/kopia/internal/cacheprot"
 	"github.com/kopia/kopia/internal/crypto"

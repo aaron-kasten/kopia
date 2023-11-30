@@ -18,7 +18,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/tg123/go-htpasswd"
 
-	"github.com/kopia/kopia/debug"
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/ctxutil"
 	"github.com/kopia/kopia/internal/debug"
