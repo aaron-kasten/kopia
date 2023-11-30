@@ -387,3 +387,4 @@ func StopProfileBuffers(ctx context.Context) {
 	clearProfileFractions(pprofConfigs.pcm)
 	pprofConfigs.pcm = map[ProfileName]*ProfileConfig{}
 }
+
