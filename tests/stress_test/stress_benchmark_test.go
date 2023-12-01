@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"runtime"
 	"runtime/pprof"
 	"strings"
@@ -360,12 +361,12 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, app *cli.App, kpapp *
 }
 
 type testDirectories struct {
-	rootPath   string
-	cachePath  string
-	configPath string
-	repoPath   string
-	snapPath   string
-	logPath    string
+	rootPath       string
+	cachePath      string
+	configFilePath string
+	repoPath       string
+	snapPath       string
+	logPath        string
 }
 
 //nolint:unparam
@@ -541,25 +542,25 @@ func removeObjects(b *testing.B, ctx context.Context, endpoint, accessKeyID, sec
 	return nil
 }
 
-func setDefaultDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, configpath, profileprefix string) *testDirectories {
+func setDefaultDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, configpath string) *testDirectories {
 	b.Helper()
 
 	q := &testDirectories{
-		rootPath:   rootdir,
-		repoPath:   repodir,
-		snapPath:   snapdir,
-		logPath:    logdir,
-		configPath: configpath,
+		rootPath:       rootdir,
+		repoPath:       repodir,
+		snapPath:       snapdir,
+		logPath:        logdir,
+		configFilePath: configpath,
 	}
 
-	q.rootPath = createRootDirectory(b, q.rootPath, profileprefix)
+	q.rootPath = createRootDirectory(b, q.rootPath)
 
 	if q.cachePath == "" {
 		q.cachePath = q.rootPath + "/cache"
 	}
 
-	if q.configPath == "" {
-		q.configPath = q.rootPath + "/kopia.config"
+	if q.configFilePath == "" {
+		q.configFilePath = q.rootPath + "/kopia.config"
 	}
 
 	if q.logPath == "" {
@@ -581,10 +582,10 @@ func setDefaultDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, conf
 	return q
 }
 
-func newTestingDirectories(b *testing.B, dirs *testDirectories, roottmpprefix string) {
+func newTestingDirectories(b *testing.B, dirs *testDirectories) {
 	b.Helper()
 
-	dirs.rootPath = createRootDirectory(b, dirs.rootPath, roottmpprefix)
+	dirs.rootPath = createRootDirectory(b, dirs.rootPath)
 
 	dirMode := os.FileMode(0o775)
 
@@ -624,21 +625,25 @@ func newTestingDirectories(b *testing.B, dirs *testDirectories, roottmpprefix st
 		b.Fatalf("err: %v", err)
 	}
 
-	err = os.Mkdir(dirs.configPath, dirMode)
+	d := path.Dir(dirs.configFilePath)
+	err = os.Mkdir(d, dirMode)
 	if os.IsExist(err) {
 		if bVerbose {
-			b.Logf("directory %q exists.", dirs.configPath)
+			b.Logf("directory %q exists.", d)
 		}
 	} else if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 }
 
-func createRootDirectory(b *testing.B, rootdir, roottmpprefix string) string {
+func createRootDirectory(b *testing.B, rootdir string) string {
 	b.Helper()
 
+	var err error
+
 	if rootdir != "" {
-		fst, err := os.Stat(rootdir)
+		var fst os.FileInfo
+		fst, err = os.Stat(rootdir)
 		if err != nil {
 			b.Fatalf("%v", err)
 		}
@@ -647,10 +652,9 @@ func createRootDirectory(b *testing.B, rootdir, roottmpprefix string) string {
 			b.Fatalf("must be a directory")
 		}
 	} else {
-		var err error
-		rootdir, err = os.MkdirTemp(os.Getenv("TMPDIR"), fmt.Sprintf("%s.*", roottmpprefix))
+		rootdir, err = os.MkdirTemp("", "")
 		if err != nil {
-			b.Fatalf("ERROR: %v", err)
+			b.Fatalf("%v", err)
 		}
 	}
 
@@ -720,35 +724,28 @@ func BenchmarkBlockManager(b *testing.B) {
 	seed := nSeed
 	n := nFlag
 	frepoformat0 := fRepoFormat0
-	frootdir0 := fRootDir
-	fsnapdir0 := fSnapDir
-	frepodir0 := fRepoDir
-	fcachedir0 := fCacheDir
-	fconfigpath0 := fRepoDir
-	flogdir0 := fLogDir
 	frepobucket0 := fRepoBucket
 	fprofileformat3 := fProfileFormat3
-	froottmpprefix := fRootTmpPrefix
 	replacement0 := nReplacement
 	createrepo0 := bCreateRepo
 	password := nPassword
 
-	tdirs := setDefaultDirectories(b, frootdir0, frepodir0, fsnapdir0, flogdir0, fConfigPath, froottmpprefix)
+	tdirs := setDefaultDirectories(b, fRootDir, fRepoDir, fSnapDir, fLogDir, fConfigPath)
 
 	//nolint:lll
-	b.Logf("file size = %d; n0 = %d; n1 = %d; label = %q; seed = %d; n = %d; repoformat = %q, rootdir = %q; snapdir = %q, repodir = %q, bucket = %q, replacement = %d, createrepo = %t, cachedir = %q, configpath = %q; logdir = %q; roottmpprefix = %q; profileformat = %q",
-		f0Size, n0, n1, flabel0, seed, n, frepoformat0, tdirs.rootPath, tdirs.snapPath, tdirs.repoPath, frepobucket0, replacement0, createrepo0, tdirs.cachePath, tdirs.configPath, tdirs.logPath, froottmpprefix, fprofileformat3)
+	b.Logf("file size = %d; n0 = %d; n1 = %d; label = %q; seed = %d; n = %d; repoformat = %q, rootdir = %q; snapdir = %q, repodir = %q, bucket = %q, replacement = %d, createrepo = %t, cachedir = %q, configpath = %q; logdir = %q; profileformat = %q",
+		f0Size, n0, n1, flabel0, seed, n, frepoformat0, tdirs.rootPath, tdirs.snapPath, tdirs.repoPath, frepobucket0, replacement0, createrepo0, tdirs.cachePath, tdirs.configFilePath, tdirs.logPath, fprofileformat3)
 
 	rnd := rand.New(rand.NewSource(seed))
 
-	newTestingDirectories(b, tdirs, froottmpprefix)
+	newTestingDirectories(b, tdirs)
 
 	if nReplacement != 0 {
 		b.Logf("creating reposiory files...")
 		CreateRepoFiles(b, rnd, n0, n1, fsize0, 0, tdirs.snapPath)
 	}
 
-	b.Logf("tmpdir = %q", tdirs.rootPath)
+	b.Logf("rootdir = %q", tdirs.rootPath)
 
 	app := cli.NewApp()
 	app.AdvancedCommands = "enabled"
@@ -810,17 +807,17 @@ func BenchmarkBlockManager(b *testing.B) {
 				fmt.Sprintf("--bucket=%s", frepobucket0),
 				fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
 				fmt.Sprintf("--access-key=%s", awsAccessKeyID),
-				fmt.Sprintf("--config-file=%s", fconfigpath0),
+				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
-				fmt.Sprintf("--cache-directory=%s", fcachedir0),
+				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
 				"--persist-credentials")
 		case "filesystem":
 			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
 				"filesystem",
 				fmt.Sprintf("--dir=%s", tdirs.repoPath),
-				fmt.Sprintf("--config-file=%s", fconfigpath0),
+				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
-				fmt.Sprintf("--cache-directory=%s", fcachedir0),
+				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
 				"--persist-credentials")
 		}
 	}
@@ -835,7 +832,7 @@ func BenchmarkBlockManager(b *testing.B) {
 				fmt.Sprintf("--bucket=%s", tdirs.repoPath),
 				fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
 				fmt.Sprintf("--access-key=%s", awsAccessKeyID),
-				fmt.Sprintf("--config-file=%s", tdirs.configPath),
+				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
 				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
 				"--persist-credentials")
@@ -843,9 +840,9 @@ func BenchmarkBlockManager(b *testing.B) {
 			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "connect",
 				"filesystem",
 				fmt.Sprintf("--dir=%s", tdirs.repoPath),
-				fmt.Sprintf("--config-file=%s", fconfigpath0),
+				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
-				fmt.Sprintf("--cache-directory=%s", fcachedir0),
+				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
 				"--persist-credentials")
 		}
 
@@ -881,7 +878,7 @@ func BenchmarkBlockManager(b *testing.B) {
 			b.Logf("snapshotting filesystem ...")
 
 			RunKopiaSubcommand(b, ctx, app, kpapp, "snapshot", "create",
-				fmt.Sprintf("--config-file=%s", tdirs.configPath),
+				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				tdirs.snapPath)
 			runtime.GC()
 		}()
