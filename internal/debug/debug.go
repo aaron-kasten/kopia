@@ -296,7 +296,7 @@ func DumpPem(bs []byte, types string, wrt io.Writer) error {
 			return fmt.Errorf("could not write PEM: %w", err2)
 		}
 
-		return io.EOF
+		return nil
 	}
 
 	return fmt.Errorf("error reading bytes: %w", err1)
@@ -350,6 +350,7 @@ func StopProfileBuffers(ctx context.Context) {
 		debug, err := parseDebugNumber(v)
 		if err != nil {
 			log(ctx).With("cause", err).Warn("invalid PPROF configuration debug number")
+
 			continue
 		}
 
@@ -387,4 +388,3 @@ func StopProfileBuffers(ctx context.Context) {
 	clearProfileFractions(pprofConfigs.pcm)
 	pprofConfigs.pcm = map[ProfileName]*ProfileConfig{}
 }
-
