@@ -131,7 +131,7 @@ func (c *commandSnapshotCreate) run(ctx context.Context, rep repo.RepositoryWrit
 
 	for _, snapshotDir := range sources {
 		if u.IsCanceled() {
-			log(ctx).Infof("Upload canceled")
+			log(ctx).Info("Upload canceled")
 			break
 		}
 
@@ -252,7 +252,7 @@ func (c *commandSnapshotCreate) setupUploader(rep repo.RepositoryWriter) *snapsh
 		ctx, canfn := context.WithTimeout(context.Background(), debug.PPROFDumpTimeout)
 		defer canfn()
 
-		log(ctx).Infof("Dumping profiles...")
+		log(ctx).Info("Dumping profiles...")
 
 		debug.StopProfileBuffers(ctx)
 		// restart profile buffers as this does not kill the process
@@ -264,6 +264,8 @@ func (c *commandSnapshotCreate) setupUploader(rep repo.RepositoryWriter) *snapsh
 		// test changing this to run() context in future
 		ctx, canfn := context.WithTimeout(context.Background(), debug.PPROFDumpTimeout)
 		defer canfn()
+
+		u.Cancel()
 
 		debug.StopProfileBuffers(ctx)
 	})
@@ -344,7 +346,7 @@ func (c *commandSnapshotCreate) snapshotSingleSource(ctx context.Context, fsEntr
 	ignoreIdenticalSnapshot := policyTree.EffectivePolicy().RetentionPolicy.IgnoreIdenticalSnapshots.OrDefault(false)
 	if ignoreIdenticalSnapshot && len(previous) > 0 {
 		if previous[0].RootObjectID() == manifest.RootObjectID() {
-			log(ctx).Infof("\n Not saving snapshot because no files have been changed since previous snapshot")
+			log(ctx).Info("\n Not saving snapshot because no files have been changed since previous snapshot")
 			return nil
 		}
 	}
