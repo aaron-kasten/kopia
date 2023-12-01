@@ -46,6 +46,7 @@ var (
 	fConfigPath     string
 	nReplacement    int
 	bCreateRepo     bool
+	bVerbose        bool
 	nPassword       string
 )
 
@@ -69,6 +70,7 @@ func init() {
 	flag.StringVar(&fProfileFormat3, "stress_test.profileformat", "Unknown.%s.%s.%d", "format string for profile dump")
 	flag.IntVar(&nReplacement, "stress_test.replacement", 0, "0: no repository, 1: replace, 2: skip, 3: add")
 	flag.BoolVar(&bCreateRepo, "stress_test.createrepo", false, "create repository")
+	flag.BoolVar(&bVerbose, "stress_test.verbose", false, "verbose output")
 	flag.StringVar(&nPassword, "stress_test.repopass", "password", "password for the repository")
 
 	ppnms = []string{
@@ -100,7 +102,9 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 
 		err = os.Mkdir(drootname, os.FileMode(0o755))
 		if os.IsExist(err) {
-			b.Logf("directory %q exists.", drootname)
+			if bVerbose {
+				b.Logf("directory %q exists.", drootname)
+			}
 		} else if err != nil {
 			b.Fatalf("%v", err)
 		}
@@ -112,7 +116,9 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 
 			err = os.Mkdir(drootname, os.FileMode(0o755))
 			if os.IsExist(err) {
-				b.Logf("directory %q exists.", drootname)
+				if bVerbose {
+					b.Logf("directory %q exists.", drootname)
+				}
 			} else if err != nil {
 				b.Fatalf("%v", err)
 			}
@@ -132,7 +138,9 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 
 			var f *os.File
 
-			b.Logf("creating file %q", fpath1)
+			if bVerbose {
+				b.Logf("creating file %q", fpath1)
+			}
 
 			f, err = os.Create(fpath1)
 			if err != nil {
@@ -150,12 +158,13 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 
 			buf := bytes.NewBuffer(bs)
 
-			n1, err := io.Copy(f, buf)
+			var n2 int64
+			n2, err = io.Copy(f, buf)
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
 
-			if n1 != int64(size) {
+			if n2 != int64(size) {
 				b.Fatalf("unexpected size")
 			}
 		}
@@ -199,7 +208,9 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				if os.IsExist(err) {
 					errn++
 
-					b.Logf("directory %q already exists.", dpath1)
+					if bVerbose {
+						b.Logf("directory %q already exists.", dpath1)
+					}
 				} else if err != nil {
 					errn++
 
@@ -215,7 +226,9 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 					// file already exists
 					errn++
 
-					b.Logf("file %q already exists.", fpath1)
+					if bVerbose {
+						b.Logf("file %q already exists.", fpath1)
+					}
 
 					continue
 				} else if err != nil {
@@ -577,35 +590,45 @@ func newTestingDirectories(b *testing.B, dirs *testDirectories, roottmpprefix st
 
 	err := os.Mkdir(dirs.cachePath, dirMode)
 	if os.IsExist(err) {
-		b.Logf("directory %q exists.", dirs.cachePath)
+		if bVerbose {
+			b.Logf("directory %q exists.", dirs.cachePath)
+		}
 	} else if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
 	err = os.Mkdir(dirs.repoPath, dirMode)
 	if os.IsExist(err) {
-		b.Logf("directory %q exists.", dirs.repoPath)
+		if bVerbose {
+			b.Logf("directory %q exists.", dirs.repoPath)
+		}
 	} else if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
 	err = os.Mkdir(dirs.snapPath, dirMode)
 	if os.IsExist(err) {
-		b.Logf("directory %q exists.", dirs.snapPath)
+		if bVerbose {
+			b.Logf("directory %q exists.", dirs.snapPath)
+		}
 	} else if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
 	err = os.Mkdir(dirs.logPath, dirMode)
 	if os.IsExist(err) {
-		b.Logf("directory %q exists.", dirs.logPath)
+		if bVerbose {
+			b.Logf("directory %q exists.", dirs.logPath)
+		}
 	} else if err != nil {
 		b.Fatalf("err: %v", err)
 	}
 
 	err = os.Mkdir(dirs.configPath, dirMode)
 	if os.IsExist(err) {
-		b.Logf("directory %q exists.", dirs.configPath)
+		if bVerbose {
+			b.Logf("directory %q exists.", dirs.configPath)
+		}
 	} else if err != nil {
 		b.Fatalf("err: %v", err)
 	}
@@ -771,6 +794,15 @@ func BenchmarkBlockManager(b *testing.B) {
 			err = createBucket(b, ctx, "s3.amazonaws.com", awsAccessKeyID, awsSecretAccessKey, frepobucket0, true)
 			if err != nil {
 				b.Fatalf("%v", err)
+			}
+
+			ok = false
+			for !ok {
+				ok, err = checkBucket(b, ctx, "s3.amazonaws.com", awsAccessKeyID, awsSecretAccessKey, frepobucket0, true)
+				if err != nil {
+					b.Fatalf("%#v", err)
+				}
+				b.Logf("ok = %t", ok)
 			}
 
 			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
