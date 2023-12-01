@@ -45,6 +45,7 @@ var (
 	fProfileFormat3 string
 	fRootTmpPrefix  string
 	fConfigPath     string
+	fProfileDir     string
 	nReplacement    int
 	bCreateRepo     bool
 	bVerbose        bool
@@ -64,8 +65,9 @@ func init() {
 	flag.StringVar(&fSnapDir, "stress_test.snapdir", "", "snapshot directory for repo")
 	flag.StringVar(&fLogDir, "stress_test.logdir", "", "repository log directory")
 	flag.StringVar(&fRepoDir, "stress_test.repodir", "", "repository directory")
-	flag.StringVar(&fRepoBucket, "stress_test.repobucket", "", "repository bucket")
+	flag.StringVar(&fProfileDir, "stress_test.profiledir", "", "destination directory for profile dump")
 	flag.StringVar(&fConfigPath, "stress_test.configfile", "", "configuration file path")
+	flag.StringVar(&fRepoBucket, "stress_test.repobucket", "", "repository bucket")
 	flag.StringVar(&fRepoFormat0, "stress_test.repoformat", "s3", "format of repository")
 	flag.StringVar(&fRootTmpPrefix, "stress_test.roottmpprefix", "Unknown", "generated root dir prefix if no root dir is specified")
 	flag.StringVar(&fProfileFormat3, "stress_test.profileformat", "Unknown.%s.%s.%d", "format string for profile dump")
@@ -210,7 +212,7 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 					errn++
 
 					if bVerbose {
-						b.Logf("directory %q already exists.", dpath1)
+						b.Logf("warning: directory %q already exists.", dpath1)
 					}
 				} else if err != nil {
 					errn++
@@ -228,7 +230,7 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 					errn++
 
 					if bVerbose {
-						b.Logf("file %q already exists.", fpath1)
+						b.Logf("warning: file %q already exists.", fpath1)
 					}
 
 					continue
@@ -262,7 +264,11 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				b.Logf("target file to delete %q..", fpath1)
 
 				err = os.Remove(fpath1)
-				if err != nil {
+				if os.IsNotExist(err) {
+					errn++
+
+					b.Logf("warning: %v", err)
+				} else if err != nil {
 					errn++
 
 					b.Fatalf("%v", err)
@@ -367,6 +373,7 @@ type testDirectories struct {
 	repoPath       string
 	snapPath       string
 	logPath        string
+	profPath       string
 }
 
 //nolint:unparam
@@ -466,11 +473,11 @@ func removeObjects(b *testing.B, ctx context.Context, endpoint, accessKeyID, sec
 
 		m := 500
 		if cnt%m == 0 {
-			b.Logf("1. removed %d objects", cnt)
+			b.Logf("removed %d objects", cnt)
 		}
 	}
 
-	b.Logf("1. removed %d objects", cnt)
+	b.Logf("removed %d objects", cnt)
 
 	cnt = 0
 
@@ -500,11 +507,11 @@ func removeObjects(b *testing.B, ctx context.Context, endpoint, accessKeyID, sec
 
 		m := 500
 		if cnt%m == 0 {
-			b.Logf("2. removed %d objects", cnt)
+			b.Logf("removed %d objects", cnt)
 		}
 	}
 
-	b.Logf("2. removed %d objects", cnt)
+	b.Logf("removed %d objects", cnt)
 	cnt = 0
 
 	// List all objects from a bucket-name with a matching prefix.
@@ -533,11 +540,11 @@ func removeObjects(b *testing.B, ctx context.Context, endpoint, accessKeyID, sec
 
 		m := 500
 		if cnt%m == 0 {
-			b.Logf("3. removed %d objects", cnt)
+			b.Logf("removed %d objects", cnt)
 		}
 	}
 
-	b.Logf("3. removed %d objects", cnt)
+	b.Logf("removed %d objects", cnt)
 
 	return nil
 }
@@ -565,6 +572,10 @@ func setDefaultDirectories(b *testing.B, rootdir, repodir, snapdir, logdir, conf
 
 	if q.logPath == "" {
 		q.logPath = q.rootPath + "/logs"
+	}
+
+	if q.profPath == "" {
+		q.profPath = q.rootPath + "/profiles"
 	}
 
 	if q.repoPath == "" {
@@ -620,6 +631,15 @@ func newTestingDirectories(b *testing.B, dirs *testDirectories) {
 	if os.IsExist(err) {
 		if bVerbose {
 			b.Logf("directory %q exists.", dirs.logPath)
+		}
+	} else if err != nil {
+		b.Fatalf("err: %v", err)
+	}
+
+	err = os.Mkdir(dirs.profPath, dirMode)
+	if os.IsExist(err) {
+		if bVerbose {
+			b.Logf("directory %q exists.", dirs.profPath)
 		}
 	} else if err != nil {
 		b.Fatalf("err: %v", err)
@@ -829,7 +849,7 @@ func BenchmarkBlockManager(b *testing.B) {
 		case "s3":
 			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "connect",
 				"s3",
-				fmt.Sprintf("--bucket=%s", tdirs.repoPath),
+				fmt.Sprintf("--bucket=%s", frepobucket0),
 				fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
 				fmt.Sprintf("--access-key=%s", awsAccessKeyID),
 				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
@@ -850,7 +870,8 @@ func BenchmarkBlockManager(b *testing.B) {
 	}()
 
 	for j := range ppnms {
-		ppf0, err := os.Create(fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0))
+		dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0)
+		ppf0, err := os.Create(fmt.Sprintf(path.Join(tdirs.profPath, dumpfn), "connect", ppnms[j], 0))
 		if err != nil {
 			b.Fatalf("%v", err)
 		}
@@ -884,7 +905,8 @@ func BenchmarkBlockManager(b *testing.B) {
 		}()
 
 		for j := range ppnms {
-			ppf0, err := os.Create(fmt.Sprintf(fprofileformat3, "connect", ppnms[j], i+1))
+			dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0)
+			ppf0, err := os.Create(fmt.Sprintf(path.Join(tdirs.profPath, dumpfn), "connect", ppnms[j], i+1))
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
