@@ -54,8 +54,6 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 
 	defer func() {
 		//nolint:errcheck
-		destRepo.Close(ctx)
-		//nolint:errcheck
 		sourceRepo.Close(ctx)
 	}()
 
@@ -75,9 +73,8 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 
 	c.svc.getProgress().StartShared()
 
-	c.svc.onCtrlC(func() {
+	c.svc.onTerminate(func() {
 		// use new context as old one may have already errored out
-		// test changing this to run() context in future
 		var canfn context.CancelFunc
 		ctx, canfn = context.WithTimeout(context.Background(), debug.PPROFDumpTimeout)
 		defer canfn()
@@ -102,7 +99,6 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 
 	c.svc.onSigDump(func() {
 		// use new context as old one may have already errored out
-		// test changing this to run() context in future
 		var canfn context.CancelFunc
 		ctx, canfn = context.WithTimeout(context.Background(), debug.PPROFDumpTimeout)
 		defer canfn()

@@ -12,10 +12,12 @@ import (
 	"github.com/fatih/color"
 	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/kopia/kopia/internal/apiclient"
+	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/internal/gather"
 	"github.com/kopia/kopia/internal/passwordpersist"
 	"github.com/kopia/kopia/internal/releasable"
@@ -89,9 +91,8 @@ type appServices interface {
 	stdout() io.Writer
 	Stderr() io.Writer
 	stdin() io.Reader
-	onCtrlC(callback func())
-	onSigTerm(callback func())
 	onSigDump(callback func())
+	onTerminate(callback func())
 	onRepositoryFatalError(callback func(err error))
 	enableTestOnlyFlags() bool
 	EnvName(s string) string
@@ -172,7 +173,6 @@ type App struct {
 	rootctx          context.Context //nolint:containedctx
 	loggerFactory    logging.LoggerFactory
 	simulatedCtrlC   chan bool
-	simulatedSigTerm chan bool
 	simulatedSigDump chan bool
 	envNamePrefix    string
 }
@@ -412,6 +412,9 @@ func (c *App) serverAction(sf *serverClientFlags, act func(ctx context.Context, 
 		}
 
 		return c.runAppWithContext(kpc.SelectedCommand, func(ctx context.Context) error {
+			// TODO: BIX
+			debug.StartProfileBuffers(ctx)
+			defer debug.StopProfileBuffers(ctx)
 			return act(ctx, apiClient)
 		})
 	}

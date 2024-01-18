@@ -322,8 +322,6 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 		return nil, errors.Wrap(err, "unable to create API client")
 	}
 
-	debug.StartProfileBuffers(ctx)
-
 	rr := &apiServerRepository{
 		immutableServerRepositoryParameters: par,
 		cli:                                 cli,
