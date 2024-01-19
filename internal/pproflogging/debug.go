@@ -1,4 +1,4 @@
-// Package debug for debug helper functions.
+// Package pproflogging for debug helper functions.
 package pproflogging
 
 import (
@@ -118,6 +118,7 @@ func MaybeStartProfileBuffers(ctx context.Context) {
 		log(ctx).With("error", err).Debug("cannot start configured profile buffers")
 		return
 	}
+
 	if pcm == nil {
 		log(ctx).Debug("no profile buffer configuration to start")
 		return
@@ -140,6 +141,9 @@ func MaybeStopProfileBuffers(ctx context.Context) {
 		log(ctx).Debug("no profile buffer configuration to stop")
 		return
 	}
+
+	pprofConfigs.mu.Lock()
+	defer pprofConfigs.mu.Unlock()
 
 	pprofConfigs.StopProfileBuffers(ctx)
 }
@@ -200,6 +204,7 @@ func (p *ProfileConfigs) StartProfileBuffers(ctx context.Context) {
 	if !ok {
 		return
 	}
+
 	err := pprof.StartCPUProfile(v.buf)
 	if err != nil {
 		delete(p.pcm, ProfileNameCPU)
@@ -210,9 +215,6 @@ func (p *ProfileConfigs) StartProfileBuffers(ctx context.Context) {
 // StopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
 // supplied here are from MaybeStartProfileBuffers.
 func (p *ProfileConfigs) StopProfileBuffers(ctx context.Context) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	defer func() {
 		// clear the profile rates and fractions to effectively stop profiling
 		clearProfileFractions(p.pcm)
