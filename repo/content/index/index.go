@@ -43,7 +43,6 @@ func Open(data []byte, closer func() error, v1PerContentOverhead func() int) (In
 	}
 }
 
-// func safeSlice(data []byte, offset int64, length int) (v []byte, err error) {
 func safeSlice(data []byte, offset int64, length int) ([]byte, error) {
 	return func() (v []byte, err error) {
 		defer func() {
