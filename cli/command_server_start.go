@@ -20,7 +20,7 @@ import (
 
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/ctxutil"
-	"github.com/kopia/kopia/internal/debug"
+	"github.com/kopia/kopia/internal/pproflogging"
 	"github.com/kopia/kopia/internal/server"
 	"github.com/kopia/kopia/repo"
 )
@@ -212,7 +212,7 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		// wait for all connections to finish for up to 5 seconds
 		log(ctx2).Debugf("attempting graceful shutdown for %v", c.shutdownGracePeriod)
 
-		debug.StopProfileBuffers(ctx)
+		pproflogging.MaybeStopProfileBuffers(ctx)
 
 		if serr := httpServer.Shutdown(ctx2); serr != nil {
 			// graceful shutdown unsuccessful, force close
@@ -227,7 +227,7 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 	c.svc.onTerminate(func() {
 		log(ctx).Infof("Shutting down...")
-		shutdownServer(ctx, httpServer, srv)
+		shutdownServer(ctx, httpServer)
 	})
 
 	c.svc.onRepositoryFatalError(func(_ error) {
@@ -236,12 +236,12 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		}
 	})
 
-	c.svc.onSigDump(func() {
-		debug.StopProfileBuffers(ctx)
-		debug.StartProfileBuffers(ctx)
+	c.svc.onDebugDump(func() {
+		pproflogging.MaybeStopProfileBuffers(ctx)
+		pproflogging.MaybeStartProfileBuffers(ctx)
 	})
 
-	c.svc.onRepositoryFatalError(func(error) { shutdownServer(ctx, httpServer, srv) })
+	c.svc.onRepositoryFatalError(func(error) { shutdownServer(ctx, httpServer) })
 
 	m := mux.NewRouter()
 
@@ -281,12 +281,8 @@ func (c *commandServerStart) run(ctx context.Context) error {
 }
 
 // shutdownServer shutdown http server and close the repository.
-//
-//nolint:revive,unparam
-func shutdownServer(ctx context.Context, httpServer *http.Server, srv *server.Server) {
+func shutdownServer(ctx context.Context, httpServer *http.Server) {
 	log(ctx).Infof("Shutting down...")
-
-	debug.StopProfileBuffers(ctx)
 
 	if serr := httpServer.Shutdown(ctx); serr != nil {
 		log(ctx).Debugf("unable to shut down http server: %v", serr)
