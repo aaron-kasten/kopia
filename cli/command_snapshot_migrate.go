@@ -75,6 +75,7 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 
 	c.svc.getProgress().StartShared()
 
+<<<<<<< HEAD
 	c.svc.onCtrlC(func() {
 		// use new context as old one may have already errored out
 		// test changing this to run() context in future
@@ -82,6 +83,9 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 		ctx, canfn = context.WithTimeout(context.Background(), debug.PPROFDumpTimeout)
 		defer canfn()
 
+=======
+	c.svc.onTerminate(func() {
+>>>>>>> 37da48b641543763dcb4f4f5885b98f8deeaacc9
 		mu.Lock()
 		defer mu.Unlock()
 
