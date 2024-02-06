@@ -256,12 +256,12 @@ func (c *commandServerStart) run(ctx context.Context) error {
 	httpServer.Handler = handler
 
 	if c.serverStartShutdownWhenStdinClosed {
-		log(ctx).Info("Server will close when stdin is closed...")
+		log(ctx).Infof("Server will close when stdin is closed...")
 
 		ctxutil.GoDetached(ctx, func(ctx context.Context) {
 			// consume all stdin and close the server when it closes
 			io.ReadAll(os.Stdin) //nolint:errcheck
-			log(ctx).Info("Shutting down server...")
+			log(ctx).Infof("Shutting down server...")
 			httpServer.Shutdown(ctx) //nolint:errcheck
 		})
 	}
@@ -274,23 +274,6 @@ func (c *commandServerStart) run(ctx context.Context) error {
 	}
 
 	return errors.Wrap(srv.SetRepository(ctx, nil), "error setting active repository")
-}
-
-// shutdownServer shutdown http server and close the repository.
-func shutdownServer(ctx context.Context, httpServer *http.Server, srv *server.Server) {
-	log(ctx).Info("Shutting down ...")
-
-	if serr := httpServer.Shutdown(ctx); serr != nil {
-		log(ctx).Debugf("unable to shut down http server: %v", serr)
-	}
-
-	rep := srv.GetRepository()
-	if rep != nil {
-		log(ctx).Info("Closing repository ...")
-		if rerr := rep.Close(ctx); rerr != nil {
-			log(ctx).Debugf("unable to shut down repository: %v", rerr)
-		}
-	}
 }
 
 func (c *commandServerStart) setupHandlers(srv *server.Server, m *mux.Router) {
@@ -377,7 +360,7 @@ func (c *commandServerStart) getAuthenticator(ctx context.Context) (auth.Authent
 		authenticators = append(authenticators, auth.AuthenticateSingleUser(c.serverControlUsername, randomPassword))
 	}
 
-	log(ctx).Info(`
+	log(ctx).Infof(`
 Server will allow connections from users whose accounts are stored in the repository.
 User accounts can be added using 'kopia server user add'.
 `)

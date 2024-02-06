@@ -11,7 +11,6 @@ import (
 
 	"github.com/kopia/kopia/internal/clock"
 	"github.com/kopia/kopia/internal/crypto"
-	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/internal/metrics"
 	"github.com/kopia/kopia/repo/blob"
 	"github.com/kopia/kopia/repo/blob/throttling"
