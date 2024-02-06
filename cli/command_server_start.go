@@ -20,7 +20,7 @@ import (
 
 	"github.com/kopia/kopia/internal/auth"
 	"github.com/kopia/kopia/internal/ctxutil"
-	"github.com/kopia/kopia/internal/debug"
+	"github.com/kopia/kopia/internal/pproflogging"
 	"github.com/kopia/kopia/internal/server"
 	"github.com/kopia/kopia/repo"
 )
@@ -193,7 +193,7 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		return errors.Wrap(err, "unable to initialize server")
 	}
 
-	if err = c.initRepositoryPossiblyAsync(ctx, srv); err != nil {
+	if err := c.initRepositoryPossiblyAsync(ctx, srv); err != nil {
 		return errors.Wrap(err, "unable to initialize repository")
 	}
 
@@ -212,16 +212,12 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		// wait for all connections to finish for up to 5 seconds
 		log(ctx2).Debugf("attempting graceful shutdown for %v", c.shutdownGracePeriod)
 
+		pproflogging.MaybeStopProfileBuffers(ctx)
+
 		if serr := httpServer.Shutdown(ctx2); serr != nil {
 			// graceful shutdown unsuccessful, force close
 			log(ctx2).Debugf("unable to shut down gracefully - closing: %v", serr)
 			return errors.Wrap(httpServer.Close(), "close")
-		}
-
-		rep := srv.GetRepository()
-		if rep != nil {
-			//nolint:errcheck
-			rep.Close(ctx)
 		}
 
 		log(ctx2).Debugf("graceful shutdown succeeded")
@@ -229,16 +225,19 @@ func (c *commandServerStart) run(ctx context.Context) error {
 		return nil
 	}
 
-	c.svc.onCtrlC(func() { shutdownServer(ctx, httpServer, srv) })
+	c.svc.onTerminate(func() {
+		log(ctx).Infof("Shutting down...")
 
-	c.svc.onSigTerm(func() { shutdownServer(ctx, httpServer, srv) })
-
-	c.svc.onSigDump(func() {
-		debug.StopProfileBuffers(ctx)
-		debug.StartProfileBuffers(ctx)
+		if serr := httpServer.Shutdown(ctx); serr != nil {
+			log(ctx).Debugf("unable to shut down: %v", serr)
+		}
 	})
 
-	c.svc.onRepositoryFatalError(func(error) { shutdownServer(ctx, httpServer, srv) })
+	c.svc.onRepositoryFatalError(func(_ error) {
+		if serr := httpServer.Shutdown(ctx); serr != nil {
+			log(ctx).Debugf("unable to shut down: %v", serr)
+		}
+	})
 
 	m := mux.NewRouter()
 
@@ -269,9 +268,9 @@ func (c *commandServerStart) run(ctx context.Context) error {
 
 	onExternalConfigReloadRequest(srv.Refresh)
 
-	err = c.startServerWithOptionalTLS(ctx, httpServer)
-	if !errors.Is(err, http.ErrServerClosed) {
-		return err
+	serr := c.startServerWithOptionalTLS(ctx, httpServer)
+	if !errors.Is(serr, http.ErrServerClosed) {
+		return serr
 	}
 
 	return errors.Wrap(srv.SetRepository(ctx, nil), "error setting active repository")

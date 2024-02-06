@@ -40,12 +40,6 @@ type apiServerRepository struct {
 	*immutableServerRepositoryParameters // immutable parameters
 }
 
-// CloseDebug release debugging resources.
-func (r *apiServerRepository) CloseDebug(ctx context.Context) {
-	// use grace from ctx.
-	debug.StopProfileBuffers(ctx)
-}
-
 func (r *apiServerRepository) APIServerURL() string {
 	return r.cli.BaseURL
 }
@@ -195,6 +189,7 @@ func (r *apiServerRepository) NewWriter(ctx context.Context, opt WriteSessionOpt
 func (r *apiServerRepository) ContentInfo(ctx context.Context, contentID content.ID) (content.Info, error) {
 	var bi content.Info
 
+	//nolint:goconst
 	if err := r.cli.Get(ctx, "contents/"+contentID.String()+"?info=1", content.ErrContentNotFound, &bi); err != nil {
 		return content.Info{}, errors.Wrap(err, "ContentInfo")
 	}
@@ -322,8 +317,6 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 		return nil, errors.Wrap(err, "unable to create API client")
 	}
 
-	debug.StartProfileBuffers(ctx)
-
 	rr := &apiServerRepository{
 		immutableServerRepositoryParameters: par,
 		cli:                                 cli,
@@ -354,13 +347,6 @@ func openRestAPIRepository(ctx context.Context, si *APIServerInfo, password stri
 	}
 
 	rr.omgr = omgr
-
-	par.registerEarlyCloseFunc(func(ctx context.Context) error {
-		// release debugging resources as part of early debug.  This leaves the debugger
-		// a chance to use runtime resources before they too are released
-		rr.CloseDebug(ctx)
-		return nil
-	})
 
 	return rr, nil
 }

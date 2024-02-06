@@ -30,33 +30,44 @@ func (c *App) onRepositoryFatalError(f func(err error)) {
 	c.onFatalErrorCallbacks = append(c.onFatalErrorCallbacks, f)
 }
 
-func (c *App) onSigTerm(f func()) {
-	onSig(c.simulatedSigTerm, syscall.SIGTERM, f)
-}
-
-func (c *App) onSigDump(f func()) {
-	onSig(c.simulatedSigDump, syscall.SIGUSR1, f)
-}
-
-func (c *App) onCtrlC(f func()) {
-	onSig(c.simulatedCtrlC, os.Interrupt, f)
-}
-
-func onSig(chn chan bool, sig os.Signal, f func()) {
-	s := make(chan os.Signal, 1)
-	signal.Notify(s, sig)
+func (c *App) onTerminate(f func()) {
+	// channel length of 2 to accommodate both signals
+	//nolint:gomnd
+	s := make(chan os.Signal, 2)
+	signal.Notify(s, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		// invoke the function when either real or simulated SIGTERM signal is delivered
+		// invoke the function when either real or simulated Ctrl-C signal is delivered
 		select {
-		case v := <-chn:
+		case v := <-c.simulatedCtrlC:
 			if !v {
 				return
 			}
 
 		case <-s:
 		}
+		signal.Reset(os.Interrupt, syscall.SIGTERM)
 		f()
+	}()
+}
+
+func (c *App) onDebugDump(f func()) {
+	s := make(chan os.Signal, 1)
+	signal.Notify(s, syscall.SIGQUIT)
+
+	go func() {
+		for {
+			// invoke the function when either real or simulated Ctrl-\ signal is delivered
+			select {
+			case v := <-c.simulatedSigDump:
+				if !v {
+					return
+				}
+
+			case <-s:
+			}
+			f()
+		}
 	}()
 }
 

@@ -242,6 +242,7 @@ func (c *commandRepositorySyncTo) runSyncBlobs(ctx context.Context, src blob.Rea
 
 				numBlobs, bytesCopied := totalCopied.Add(m.Length)
 				progressMutex.Lock()
+
 				eta := "unknown"
 				speed := "-"
 

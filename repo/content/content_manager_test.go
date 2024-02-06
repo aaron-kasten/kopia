@@ -338,8 +338,6 @@ func (s *contentManagerSuite) TestContentManagerWriteMultiple(t *testing.T) {
 		if _, err := bm.GetContent(ctx, contentIDs[pos]); err != nil {
 			dumpContentManagerData(t, data)
 			t.Fatalf("can't read content %q: %v", contentIDs[pos], err)
-
-			continue
 		}
 	}
 }
@@ -2015,7 +2013,6 @@ func verifyContentManagerDataSet(ctx context.Context, t *testing.T, mgr *WriteMa
 		v, err := mgr.GetContent(ctx, contentID)
 		if err != nil {
 			t.Fatalf("unable to read content %q: %v", contentID, err)
-			continue
 		}
 
 		if !bytes.Equal(v, originalPayload) {
@@ -2094,7 +2091,7 @@ func (s *contentManagerSuite) TestCompression_NonCompressibleData(t *testing.T) 
 	require.NoError(t, err)
 
 	// verify compression did not occur
-	require.True(t, ci.GetPackedLength() > ci.GetOriginalLength())
+	require.Greater(t, ci.GetPackedLength(), ci.GetOriginalLength())
 	require.Equal(t, uint32(len(nonCompressibleData)), ci.GetOriginalLength())
 	require.Equal(t, NoCompression, ci.GetCompressionHeaderID())
 

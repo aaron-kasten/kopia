@@ -8,7 +8,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/kopia/kopia/fs"
-	"github.com/kopia/kopia/internal/debug"
 	"github.com/kopia/kopia/repo"
 	"github.com/kopia/kopia/snapshot"
 	"github.com/kopia/kopia/snapshot/policy"
@@ -45,19 +44,14 @@ func (c *commandSnapshotMigrate) setup(svc advancedAppServices, parent commandPa
 	c.out.setup(svc)
 }
 
-//nolint:funlen
 func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.RepositoryWriter) error {
 	sourceRepo, err := c.openSourceRepo(ctx)
 	if err != nil {
 		return errors.Wrap(err, "can't open source repository")
 	}
 
-	defer func() {
-		//nolint:errcheck
-		destRepo.Close(ctx)
-		//nolint:errcheck
-		sourceRepo.Close(ctx)
-	}()
+	//nolint:errcheck
+	defer sourceRepo.Close(ctx)
 
 	sources, err := c.getSourcesToMigrate(ctx, sourceRepo)
 	if err != nil {
@@ -74,47 +68,17 @@ func (c *commandSnapshotMigrate) run(ctx context.Context, destRepo repo.Reposito
 	)
 
 	c.svc.getProgress().StartShared()
-
-<<<<<<< HEAD
-	c.svc.onCtrlC(func() {
-		// use new context as old one may have already errored out
-		// test changing this to run() context in future
-		var canfn context.CancelFunc
-		ctx, canfn = context.WithTimeout(context.Background(), debug.PPROFDumpTimeout)
-		defer canfn()
-
-=======
 	c.svc.onTerminate(func() {
->>>>>>> 37da48b641543763dcb4f4f5885b98f8deeaacc9
 		mu.Lock()
 		defer mu.Unlock()
-
 		// debounce. (consider using sync.Once)
-		if canceled {
-			return
+		if !canceled {
+			canceled = true
+			for s, u := range activeUploaders {
+				log(ctx).Infof("canceling active uploader for %v", s)
+				u.Cancel()
+			}
 		}
-
-		canceled = true
-
-		for s, u := range activeUploaders {
-			log(ctx).Infof("canceling active uploader for %v", s)
-			u.Cancel()
-		}
-
-		debug.StopProfileBuffers(ctx)
-	})
-
-	c.svc.onSigDump(func() {
-		// use new context as old one may have already errored out
-		// test changing this to run() context in future
-		var canfn context.CancelFunc
-		ctx, canfn = context.WithTimeout(context.Background(), debug.PPROFDumpTimeout)
-		defer canfn()
-
-		log(ctx).Infof("Dumping profiles...")
-
-		debug.StopProfileBuffers(ctx)
-		debug.StartProfileBuffers(ctx)
 	})
 
 	if c.migratePolicies {
