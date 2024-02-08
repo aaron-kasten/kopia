@@ -76,6 +76,19 @@ func init() {
 	flag.BoolVar(&bVerbose, "stress_test.verbose", false, "verbose output")
 	flag.StringVar(&nPassword, "stress_test.repopass", "password", "password for the repository")
 
+	if os.Getenv("KOPIA_STRESS_REPO_PASSWORD") != "" {
+		nPassword = os.Getenv("KOPIA_STRESS_REPO_PASSWORD")
+	}
+	if os.Getenv("KOPIA_STRESS_REPO_CONFIG") != "" {
+		fConfigPath = os.Getenv("KOPIA_STRESS_REPO_CONFIG")
+	}
+	if os.Getenv("KOPIA_STRESS_REPO_FS_PATH") != "" {
+		fRepoDir = os.Getenv("KOPIA_STRESS_REPO_FS_PATH")
+	}
+	if os.Getenv("KOPIA_STRESS_REPO_S3_BUCKET") != "" {
+		fRepoBucket = os.Getenv("KOPIA_STRESS_REPO_S3_BUCKET")
+	}
+
 	ppnms = []string{
 		"goroutine",    //    - stack traces of all current goroutines
 		"heap",         // - a sampling of memory allocations of live objects
@@ -436,8 +449,6 @@ func removeBucket(b *testing.B, ctx context.Context, endpoint, accessKeyID, secr
 
 //nolint:unused,gocyclo
 func removeObjects(b *testing.B, ctx context.Context, endpoint, accessKeyID, secretAccessKey, bucketName string, useSSL bool) error {
-	b.Helper()
-
 	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKeyID, secretAccessKey, ""),
 		Secure: useSSL,
@@ -776,8 +787,17 @@ func BenchmarkBlockManager(b *testing.B) {
 	kpapp := kingpin.New("test", "test")
 	logfile.Attach(app, kpapp)
 
-	awsSecretAccessKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-	awsAccessKeyID := os.Getenv("AWS_ACCESS_KEY_ID")
+	awsSecretAccessKey := ""
+	awsAccessKeyID := ""
+
+	switch frepoformat0 {
+	case "s3":
+		awsSecretAccessKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+		awsAccessKeyID = os.Getenv("AWS_ACCESS_KEY_ID")
+
+		b.Logf("AWS access key ID %q", awsAccessKeyID)
+	case "filesystem":
+	}
 
 	if createrepo0 {
 		// s3 --bucket=BUCKET --access-key=ACCESS-KEY --secret-access-key=SECRET-ACCESS-KEY
@@ -787,7 +807,7 @@ func BenchmarkBlockManager(b *testing.B) {
 		case "s3":
 			ok, err := checkBucket(b, ctx, "s3.amazonaws.com", awsAccessKeyID, awsSecretAccessKey, frepobucket0, true)
 			if err != nil {
-				b.Fatalf("%v", err)
+				b.Fatalf("cannot access bucket: %v", err)
 			}
 
 			if ok {
@@ -795,7 +815,7 @@ func BenchmarkBlockManager(b *testing.B) {
 
 				err = removeObjects(b, ctx, "s3.amazonaws.com", awsAccessKeyID, awsSecretAccessKey, frepobucket0, true)
 				if err != nil {
-					b.Fatalf("%v", err)
+					b.Fatalf("cannot remove bucket: %v", err)
 				}
 
 				b.Logf("removing bucket ...")
@@ -871,7 +891,7 @@ func BenchmarkBlockManager(b *testing.B) {
 
 	for j := range ppnms {
 		dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0)
-		ppf0, err := os.Create(fmt.Sprintf(path.Join(tdirs.profPath, dumpfn), "connect", ppnms[j], 0))
+		ppf0, err := os.Create(path.Join(tdirs.profPath, dumpfn))
 		if err != nil {
 			b.Fatalf("%v", err)
 		}
@@ -913,8 +933,13 @@ func BenchmarkBlockManager(b *testing.B) {
 
 			err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
 			if err != nil {
-				ppf0.Close()
-				b.Fatalf("%v", err)
+				err0 := ppf0.Close()
+				if err0 != nil {
+					b.Logf("pprof lookup: %v", err)
+					b.Fatalf("close: %v", err0)
+				} else {
+					b.Fatalf("pprof lookup: %v", err)
+				}
 			}
 
 			ppf0.Close()
