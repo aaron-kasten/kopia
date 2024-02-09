@@ -189,8 +189,6 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 
 //nolint:cyclop,gocyclo
 func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement int, root string) {
-	b.Helper()
-
 	deln := 0
 	errn := 0
 	modn := 0
@@ -219,18 +217,20 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 			fpath1 := fmt.Sprintf("%s/%s", dpath1, fname1)
 
 			switch what {
-			case 0:
-				err = os.Mkdir(dpath1, os.FileMode(0o775))
+			case 0: // make dir and fill
+				b.Logf("target file to make-path %q..", dpath1)
+
+				err = os.Mkdir(dpath1, 0o777)
 				if os.IsExist(err) {
 					errn++
 
 					if bVerbose {
-						b.Logf("warning: directory %q already exists.", dpath1)
+						b.Logf("mkdir %q: directory already exists.", dpath1)
 					}
 				} else if err != nil {
 					errn++
 
-					b.Fatalf("%v", err)
+					b.Fatalf("mkdir %q: %v", dpath1, err)
 				}
 
 				b.Logf("target file to create %q..", fpath1)
@@ -260,10 +260,11 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 
 					err1 := f.Close()
 					if err1 != nil {
+						b.Logf("copyn %q: %v", f.Name(), err)
 						b.Fatalf("close: %v", err1)
+					} else {
+						b.Fatalf("copyn %q: %v", f.Name(), err)
 					}
-
-					b.Fatalf("%v", err)
 				}
 
 				err1 := f.Close()
@@ -272,8 +273,7 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				}
 
 				addn++
-			case 1:
-				// remove file
+			case 1: // remove file
 				b.Logf("target file to delete %q..", fpath1)
 
 				err = os.Remove(fpath1)
@@ -288,7 +288,8 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				}
 
 				deln++
-			case 2:
+			case 2: // modify file
+				b.Logf("target file to change %q", fpath1)
 
 				k0 := rnd.Intn(fsize0)
 				k1 := rnd.Intn(fsize0)
@@ -311,27 +312,34 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 
 				f, err = os.OpenFile(fpath1, os.O_RDWR, 0o644)
 				if err != nil {
-					err1 := f.Close()
-					if err1 != nil {
-						b.Fatalf("close: %v", err1)
-					}
-
 					errn++
 
-					b.Fatalf("cannot open file %q", fpath1)
+					if os.IsNotExist(err) {
+						b.Logf("openfile %q: %v", f.Name(), err)
+						continue
+					}
+
+					err1 := f.Close()
+					if err1 != nil {
+						b.Logf("openfile %q: %v", f.Name(), err)
+						b.Fatalf("close: %v", err1)
+					} else {
+						b.Fatalf("openfile %q: %v", f.Name(), err)
+					}
 				}
 
 				// write the data
 				_, err = f.WriteAt(bs, int64(imin))
 				if err != nil {
-					err1 := f.Close()
-					if err1 != nil {
-						b.Fatalf("close: %v", err1)
-					}
-
 					errn++
 
-					b.Fatalf("cannot write in file %q: %v", fpath1, err)
+					err1 := f.Close()
+					if err1 != nil {
+						b.Logf("writeat %q: %v", f.Name(), err)
+						b.Fatalf("close: %v", err1)
+					} else {
+						b.Fatalf("writeat %q: %v", f.Name(), err)
+					}
 				}
 
 				_ = f.Close()
@@ -926,7 +934,7 @@ func BenchmarkBlockManager(b *testing.B) {
 
 		for j := range ppnms {
 			dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0)
-			ppf0, err := os.Create(fmt.Sprintf(path.Join(tdirs.profPath, dumpfn), "connect", ppnms[j], i+1))
+			ppf0, err := os.Create(path.Join(tdirs.profPath, dumpfn))
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
