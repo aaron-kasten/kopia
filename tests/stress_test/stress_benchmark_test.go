@@ -315,16 +315,16 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 					errn++
 
 					if os.IsNotExist(err) {
-						b.Logf("openfile %q: %v", f.Name(), err)
+						b.Logf("openfile %q: %v", fpath1, err)
 						continue
 					}
 
 					err1 := f.Close()
 					if err1 != nil {
-						b.Logf("openfile %q: %v", f.Name(), err)
+						b.Logf("openfile %q: %v", fpath1, err)
 						b.Fatalf("close: %v", err1)
 					} else {
-						b.Fatalf("openfile %q: %v", f.Name(), err)
+						b.Fatalf("openfile %q: %v", fpath1, err)
 					}
 				}
 
