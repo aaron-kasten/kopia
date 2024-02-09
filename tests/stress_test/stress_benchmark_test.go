@@ -897,6 +897,7 @@ func BenchmarkBlockManager(b *testing.B) {
 		runtime.GC()
 	}()
 
+	// dump profiles
 	for j := range ppnms {
 		dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0)
 		ppf0, err := os.Create(path.Join(tdirs.profPath, dumpfn))
@@ -914,6 +915,7 @@ func BenchmarkBlockManager(b *testing.B) {
 	}
 
 	for i := 0; i < n; i++ {
+		// create a bunch of snapshots
 		func() {
 			app = cli.NewApp()
 			app.AdvancedCommands = "enabled"
@@ -932,8 +934,9 @@ func BenchmarkBlockManager(b *testing.B) {
 			runtime.GC()
 		}()
 
+		// profiles after each snapshot
 		for j := range ppnms {
-			dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0)
+			dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], i)
 			ppf0, err := os.Create(path.Join(tdirs.profPath, dumpfn))
 			if err != nil {
 				b.Fatalf("%v", err)
@@ -959,7 +962,7 @@ func BenchmarkBlockManager(b *testing.B) {
 		if nReplacement != 0 {
 			func() {
 				b.Logf("altering filesystem ...")
-				TweakRepoFiles(b, rnd, n0, n1, fsize0, 0, tdirs.snapPath)
+				TweakRepoFiles(b, rnd, n0, n1, fsize0, replacement0, tdirs.snapPath)
 				runtime.GC()
 			}()
 		}

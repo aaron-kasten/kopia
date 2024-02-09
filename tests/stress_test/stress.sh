@@ -10,7 +10,7 @@ pushd $HOME/devel/kopia/tests/stress_test
 		-stress_test.createrepo=true \
 		-stress_test.repoformat=s3 \
 		-stress_test.repobucket="${KOPIA_STRESS_REPO_S3_BUCKET}" \
-		-stress_test.n=2 \
+		-stress_test.n=20 \
 		-stress_test.n0=1000 \
 		-stress_test.n1=100 \
 		-stress_test.fsize0=4096 \
