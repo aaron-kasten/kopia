@@ -8,6 +8,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGatherRandoReanNWrite(t *testing.T) {
+	// reset for testing
+	all := &chunkAllocator{
+		chunkSize: 100,
+	}
+
+	w := NewWriteBuffer()
+	w.alloc = all
+
+	defer w.Close()
+
+	w.Append([]byte(
+		`Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+incididunt ut labore et dolore magna aliqua. Id neque aliquam vestibulum morbi
+blandit cursus. Fermentum leo vel orci porta non pulvinar neque laoreet suspendisse.
+Ultricies leo integer malesuada nunc vel risus commodo viverra. Bibendum arcu
+vitae elementum curabitur vitae nunc sed velit. Massa placerat duis ultricies lacus
+sed turpis. Sed felis eget velit aliquet sagittis. Pharetra convallis posuere morbi
+leo urna. Arcu non sodales neque sodales ut etiam sit amet. Aliquam malesuada
+bibendum arcu vitae elementum. Pulvinar elementum integer enim neque volutpat ac
+tincidunt vitae. Arcu vitae elementum curabitur vitae nunc sed.`))
+
+	s := "Hello World"
+	l := len(s)
+
+	w.WriteAt([]byte(s), 6)
+
+	if string(w.ToByteSlice()[6:6+l]) != s {
+		t.Fatalf("%q %q", string(w.ToByteSlice()[6:17]), s)
+	}
+
+	w.WriteAt([]byte(s), 94)
+
+	if string(w.ToByteSlice()[94:94+l]) != s {
+		t.Fatalf("%q %q", w.ToByteSlice()[94:94+l], s)
+	}
+}
+
 func TestGatherWriteBuffer(t *testing.T) {
 	// reset for testing
 	all := &chunkAllocator{

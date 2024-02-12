@@ -57,6 +57,7 @@ type Bytes interface {
 // OutputBuffer is implemented by *gather.WriteBuffer.
 type OutputBuffer interface {
 	io.Writer
+	io.WriterAt
 
 	Reset()
 	Length() int

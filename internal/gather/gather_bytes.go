@@ -15,11 +15,34 @@ var invalidSliceBuf = []byte(uuid.NewString())
 
 // Bytes represents a sequence of bytes split into slices.
 type Bytes struct {
+	i      int64
 	Slices [][]byte
 
 	// for common case where there's one slice, store the slice itself here
 	// to avoid allocation
 	sliceBuf [1][]byte
+}
+
+func (b *Bytes) WriteAt(bs []byte, i int64) (int, error) {
+	k0 := int64(0) // global absolute index of start of window
+	k1 := int64(0) // global absolute index of end of window
+	v0 := int64(0) // offset from start of buffer to copy
+	i0 := i
+	//i1 := i0 + int64(len(bs))
+	for _, sl := range b.Slices {
+		l := int64(len(sl))
+		lbs := int64(len(bs))
+		k0 = k1
+		k1 += l
+		if i+v0 >= k0 && i+v0 < k1 && v0 < lbs {
+			a0 := max(0, i0-k0)
+			a1 := min(a0+lbs, k1)
+			n := copy(sl[a0:a1], bs[v0:])
+			v0 += int64(n)
+			b.i = k0 + int64(n)
+		}
+	}
+	return int(v0), nil
 }
 
 func (b *Bytes) invalidate() {
@@ -106,6 +129,12 @@ func (b Bytes) Length() int {
 	}
 
 	return l
+}
+
+func (b Bytes) Seek(i int64, whence int) (int64, error) {
+	b.i = i
+	panic("ssk")
+	return i, nil
 }
 
 // ReadAt implements io.ReaderAt interface.

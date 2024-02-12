@@ -170,6 +170,10 @@ func (b *WriteBuffer) Dup() *WriteBuffer {
 	return dup
 }
 
+func (b *WriteBuffer) WriteAt(bs []byte, i int64) (int, error) {
+	return b.inner.WriteAt(bs, i)
+}
+
 // NewWriteBuffer creates new write buffer.
 func NewWriteBuffer() *WriteBuffer {
 	return &WriteBuffer{}
