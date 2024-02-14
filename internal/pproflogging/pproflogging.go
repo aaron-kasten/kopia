@@ -111,10 +111,13 @@ func HasProfileBuffersEnabled() bool {
 	return len(pprofConfigs.pcm) != 0
 }
 
-// MaybeStartProfileBuffers start profile buffers for this process.
+// MaybeStartProfileBuffers start profile buffers for this process with a configuration from the environment.
 func MaybeStartProfileBuffers(ctx context.Context) {
-	config := os.Getenv(EnvVarKopiaDebugPprof)
+	MaybeStartProfileBuffersWithConfig(ctx, os.Getenv(EnvVarKopiaDebugPprof))
+}
 
+// MaybeStartProfileBuffersWithConfig start profile buffers for this process with a custom configuration.
+func MaybeStartProfileBuffersWithConfig(ctx context.Context, config string) {
 	pprofConfigs.mu.Lock()
 	defer pprofConfigs.mu.Unlock()
 
@@ -431,7 +434,6 @@ func clearProfileFractions(profileBuffers map[ProfileName]*ProfileConfig) {
 	}
 }
 
-// DumpPem dump a PEM version of the byte slice, bs, into writer, wrt.
 // DumpPem performs the PEM dump in two goroutines: the first (the main
 // execution thread) performs the output to the console (see notes below).
 // The second gorouting encodes []byte into PEM format.
