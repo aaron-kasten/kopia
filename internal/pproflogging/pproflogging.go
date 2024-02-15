@@ -112,26 +112,27 @@ func HasProfileBuffersEnabled() bool {
 }
 
 // MaybeStartProfileBuffers start profile buffers for this process with a configuration from the environment.
-func MaybeStartProfileBuffers(ctx context.Context) {
-	MaybeStartProfileBuffersWithConfig(ctx, os.Getenv(EnvVarKopiaDebugPprof))
+func MaybeStartProfileBuffers(ctx context.Context) bool {
+	return MaybeStartProfileBuffersWithConfig(ctx, os.Getenv(EnvVarKopiaDebugPprof))
 }
 
 // MaybeStartProfileBuffersWithConfig start profile buffers for this process with a custom configuration.
-func MaybeStartProfileBuffersWithConfig(ctx context.Context, config string) {
+func MaybeStartProfileBuffersWithConfig(ctx context.Context, config string) bool {
 	pprofConfigs.mu.Lock()
 	defer pprofConfigs.mu.Unlock()
 
 	if !loadAndSetProfileBuffersLocked(ctx, config) {
 		log(ctx).Debug("no profile buffer configuration to start")
-		return
+		return false
 	}
 
 	pprofConfigs.StartProfileBuffersLocked(ctx)
+	return true
 }
 
 // MaybeStopProfileBuffers stop and dump the contents of the buffers to the log as PEMs.  Buffers
 // supplied here are from MaybeStartProfileBuffers.
-func MaybeStopProfileBuffers(ctx context.Context) {
+func MaybeStopProfileBuffers(ctx context.Context) bool {
 	pprofConfigs.mu.Lock()
 	defer pprofConfigs.mu.Unlock()
 
@@ -212,8 +213,8 @@ func (p *ProfileConfigs) StartProfileBuffersLocked(ctx context.Context) {
 
 	err := pprof.StartCPUProfile(v.buf)
 	if err != nil {
-		delete(p.pcm, ProfileNameCPU)
 		log(ctx).With("cause", err).Warn("cannot start cpu PPROF")
+		delete(p.pcm, ProfileNameCPU)
 	}
 }
 
@@ -279,9 +280,6 @@ func (p *ProfileConfigs) StopProfileBuffersLocked(ctx context.Context) {
 			break
 		}
 	}
-
-	ctx, canfn := context.WithTimeout(ctx, PPROFDumpTimeout)
-	defer canfn()
 
 	// dump the profiles out into their respective PEMs
 	for k, v := range p.pcm {
