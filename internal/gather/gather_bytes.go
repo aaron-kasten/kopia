@@ -215,3 +215,56 @@ func FromSlice(b []byte) Bytes {
 
 	return r
 }
+
+var _ io.ReaderAt = &ReaderWrapper{}
+var _ io.WriterAt = &ReaderWrapper{}
+var _ io.ReadWriteSeeker = &ReaderWrapper{}
+
+type ReaderWrapper struct {
+	Bytes
+	i int64
+}
+
+func (q *ReaderWrapper) Reader() io.Reader {
+	return nil
+}
+
+func (q *ReaderWrapper) Read(bs []byte) (int, error) {
+	j := 0
+	l1 := 0
+	for vi := range q.Slices {
+		l0 := l1
+		l1 += len(q.Slices[vi])
+		if j < len(bs) && q.i+int64(j) > int64(l0) {
+			j += copy(bs[j:], q.Bytes.Slices[vi][j-l0:])
+		}
+	}
+	return j, nil
+}
+
+func (q *ReaderWrapper) Write(bs []byte) (int, error) {
+	return 0, nil
+}
+
+func (q *ReaderWrapper) WriteAt(bs []byte, off int64) (int, error) {
+	return 0, nil
+}
+
+func (q *ReaderWrapper) ReadAt(bs []byte, off int64) (int, error) {
+	return 0, nil
+}
+
+func (q *ReaderWrapper) Seek(i int64, whence int) (int64, error) {
+	l := q.Bytes.Length()
+	switch whence {
+	case io.SeekCurrent:
+		q.i = i
+	case io.SeekStart:
+		q.i += i
+	case io.SeekEnd:
+		q.i = int64(l) + i
+	default:
+		return q.i, nil
+	}
+	return 0, nil
+}

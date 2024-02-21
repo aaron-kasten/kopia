@@ -183,3 +183,44 @@ func TestGatherBytesPanicsOnClose(t *testing.T) {
 		tmp.Bytes().Reader()
 	})
 }
+
+func TestGatherBytes_ReaderWrapper(t *testing.T) {
+	tcs := []struct {
+		in     []string
+		bs     []byte
+		seek   int64
+		whence int
+		out    string
+	}{
+		{
+			in:     []string{"this that some", "and something else"},
+			bs:     make([]byte, 10),
+			seek:   0,
+			whence: 0,
+			out:    "this that ",
+		},
+		{
+			in:     []string{"this that some", " and something else"},
+			bs:     make([]byte, 10),
+			seek:   10,
+			whence: 0,
+			out:    "some and s",
+		},
+	}
+	for _, tc := range tcs {
+		q := &ReaderWrapper{}
+		bss := [][]byte{}
+		for _, b := range tc.in {
+			bss = append(bss, []byte(b))
+		}
+		q.Bytes.Slices = bss
+		lbs := len(tc.bs)
+		_, err := q.Seek(tc.seek, tc.whence)
+		require.NoError(t, err)
+		n, err := q.Read(tc.bs)
+		require.NoError(t, err)
+		require.Equal(t, lbs, n)
+		require.Equal(t, len(tc.bs), len(tc.out))
+		require.Equal(t, tc.bs, []byte(tc.out))
+	}
+}
