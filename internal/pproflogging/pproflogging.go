@@ -1,5 +1,5 @@
-// Package debug for debug helper functions.
-package debug
+// Package pproflogging for pproflogging helper functions.
+package pproflogging
 
 import (
 	"bufio"
@@ -20,7 +20,7 @@ import (
 	"github.com/kopia/kopia/repo/logging"
 )
 
-var log = logging.Module("kopia/debug")
+var log = logging.Module("kopia/pproflogging")
 
 // ProfileName the name of the profile (see: runtime/pprof/Lookup).
 type ProfileName string
@@ -41,7 +41,7 @@ const (
 
 const (
 	// EnvVarKopiaDebugPprof environment variable that contains the pprof dump configuration.
-	EnvVarKopiaDebugPprof = "KOPIA_DEBUG_PPROF"
+	EnvVarKopiaDebugPprof = "KOPIA_PPROF_LOGGING_CONFIG"
 )
 
 // flags used to configure profiling in EnvVarKopiaDebugPprof.
