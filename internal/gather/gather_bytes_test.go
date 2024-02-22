@@ -2,6 +2,7 @@ package gather
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"testing"
 	"testing/iotest"
@@ -188,6 +189,7 @@ func TestGatherBytes_ReaderWrapper(t *testing.T) {
 	tcs := []struct {
 		in     []string
 		bs     []byte
+		n      int
 		seek   int64
 		whence int
 		out    string
@@ -198,6 +200,7 @@ func TestGatherBytes_ReaderWrapper(t *testing.T) {
 			seek:   0,
 			whence: 0,
 			out:    "this that ",
+			n:      10,
 		},
 		{
 			in:     []string{"this that some", " and something else"},
@@ -205,22 +208,48 @@ func TestGatherBytes_ReaderWrapper(t *testing.T) {
 			seek:   10,
 			whence: 0,
 			out:    "some and s",
+			n:      10,
+		},
+		{
+			in:     []string{"this that some", " and something else"},
+			bs:     make([]byte, 10),
+			seek:   13,
+			whence: 0,
+			out:    "e and some",
+			n:      10,
+		},
+		{
+			in:     []string{"this that some", " and something else"},
+			bs:     make([]byte, 10),
+			seek:   14,
+			whence: 0,
+			out:    " and somet",
+			n:      10,
+		},
+		{
+			in:     []string{"this that some", " and something else"},
+			bs:     make([]byte, 10),
+			seek:   25,
+			whence: 0,
+			out:    "ing else\u0000\u0000",
+			n:      8,
 		},
 	}
-	for _, tc := range tcs {
-		q := &ReaderWrapper{}
-		bss := [][]byte{}
-		for _, b := range tc.in {
-			bss = append(bss, []byte(b))
-		}
-		q.Bytes.Slices = bss
-		lbs := len(tc.bs)
-		_, err := q.Seek(tc.seek, tc.whence)
-		require.NoError(t, err)
-		n, err := q.Read(tc.bs)
-		require.NoError(t, err)
-		require.Equal(t, lbs, n)
-		require.Equal(t, len(tc.bs), len(tc.out))
-		require.Equal(t, tc.bs, []byte(tc.out))
+
+	for i, tc := range tcs {
+		t.Run(fmt.Sprintf("%d", i), func(t *testing.T) {
+			q := &ReaderWrapper{}
+			bss := [][]byte{}
+			for _, b := range tc.in {
+				bss = append(bss, []byte(b))
+			}
+			q.Bytes.Slices = bss
+			_, err := q.Seek(tc.seek, tc.whence)
+			require.NoError(t, err)
+			n, err := q.Read(tc.bs)
+			require.NoError(t, err)
+			require.Equal(t, tc.n, n)
+			require.Equal(t, tc.bs, []byte(tc.out))
+		})
 	}
 }

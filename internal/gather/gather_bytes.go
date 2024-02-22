@@ -230,16 +230,26 @@ func (q *ReaderWrapper) Reader() io.Reader {
 }
 
 func (q *ReaderWrapper) Read(bs []byte) (int, error) {
-	j := 0
-	l1 := 0
+	vl0 := 0
+	vl1 := 0
+	bsi := 0
 	for vi := range q.Slices {
-		l0 := l1
-		l1 += len(q.Slices[vi])
-		if j < len(bs) && q.i+int64(j) > int64(l0) {
-			j += copy(bs[j:], q.Bytes.Slices[vi][j-l0:])
+		vl0 = vl1
+		vl1 += len(q.Slices[vi])
+		if int64(vl1) < q.i {
+			continue
+		}
+		j := 0
+		if int64(vl0) <= q.i {
+			j = int(q.i - int64(vl0))
+		}
+		bsi += copy(bs[bsi:], q.Slices[vi][j:])
+		if bsi == len(bs) {
+			break
 		}
 	}
-	return j, nil
+	q.i += int64(bsi)
+	return bsi, nil
 }
 
 func (q *ReaderWrapper) Write(bs []byte) (int, error) {
