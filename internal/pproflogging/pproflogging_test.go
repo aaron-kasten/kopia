@@ -16,12 +16,10 @@ import (
 
 var (
 	mu     sync.Mutex
-	oldEnv string
 )
 
 func TestDebug_parseProfileConfigs(t *testing.T) {
 	saveLockEnv(t)
-	defer restoreUnlockEnv(t)
 
 	tcs := []struct {
 		in            string
@@ -131,7 +129,6 @@ func TestDebug_parseProfileConfigs(t *testing.T) {
 
 func TestDebug_newProfileConfigs(t *testing.T) {
 	saveLockEnv(t)
-	defer restoreUnlockEnv(t)
 
 	tcs := []struct {
 		in     string
@@ -178,7 +175,6 @@ func TestDebug_newProfileConfigs(t *testing.T) {
 
 func TestDebug_DumpPem(t *testing.T) {
 	saveLockEnv(t)
-	defer restoreUnlockEnv(t)
 
 	ctx := context.Background()
 	wrt := bytes.Buffer{}
@@ -190,7 +186,6 @@ func TestDebug_DumpPem(t *testing.T) {
 
 func TestDebug_parseDebugNumber(t *testing.T) {
 	saveLockEnv(t)
-	defer restoreUnlockEnv(t)
 
 	ctx := context.Background()
 
@@ -243,7 +238,6 @@ func TestDebug_parseDebugNumber(t *testing.T) {
 func TestDebug_StartProfileBuffers(t *testing.T) {
 	// save environment and restore after testing
 	saveLockEnv(t)
-	defer restoreUnlockEnv(t)
 
 	// regexp for PEMs
 	rx := regexp.MustCompile(`(?s:-{5}BEGIN ([A-Z]+)-{5}.(([A-Za-z0-9/+=]{2,80}.)+)-{5}END ([A-Z]+)-{5})`)
@@ -287,7 +281,6 @@ func TestDebug_StartProfileBuffers(t *testing.T) {
 func TestDebug_LoadProfileConfigs(t *testing.T) {
 	// save environment and restore after testing
 	saveLockEnv(t)
-	defer restoreUnlockEnv(t)
 
 	ctx := context.Background()
 
@@ -361,16 +354,9 @@ func TestDebug_LoadProfileConfigs(t *testing.T) {
 func saveLockEnv(t *testing.T) {
 	t.Helper()
 
-	mu.Lock()
-	oldEnv = os.Getenv(EnvVarKopiaDebugPprof)
-}
+	oldEnv := os.Getenv(EnvVarKopiaDebugPprof)
 
-// +checklocksignore
-//
-//nolint:gocritic
-func restoreUnlockEnv(t *testing.T) {
-	t.Helper()
-
-	t.Setenv(EnvVarKopiaDebugPprof, oldEnv)
-	mu.Unlock()
+	t.Cleanup(func() {
+		t.Setenv(EnvVarKopiaDebugPprof, oldEnv)
+	})
 }
