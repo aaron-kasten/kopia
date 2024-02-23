@@ -1828,7 +1828,7 @@ func (s *contentManagerSuite) TestAutoCompressionOfMetadata(t *testing.T) {
 	info, err := bm.ContentInfo(ctx, contentID)
 	require.NoError(t, err)
 
-	if scc, _ := bm.SupportsContentCompression(); scc {
+	if bm.SupportsContentCompression() {
 		require.Equal(t, compression.HeaderZstdFastest, info.GetCompressionHeaderID())
 	} else {
 		require.Equal(t, NoCompression, info.GetCompressionHeaderID())
