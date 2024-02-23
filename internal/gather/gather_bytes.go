@@ -268,13 +268,11 @@ func (q *ReaderWrapper) Seek(i int64, whence int) (int64, error) {
 	l := q.Bytes.Length()
 	switch whence {
 	case io.SeekCurrent:
-		q.i = i
-	case io.SeekStart:
 		q.i += i
+	case io.SeekStart:
+		q.i = i
 	case io.SeekEnd:
 		q.i = int64(l) + i
-	default:
-		return q.i, nil
 	}
-	return 0, nil
+	return q.i, nil
 }

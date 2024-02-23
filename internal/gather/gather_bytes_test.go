@@ -4,6 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"syscall"
 	"testing"
 	"testing/iotest"
 
@@ -183,6 +187,53 @@ func TestGatherBytesPanicsOnClose(t *testing.T) {
 	require.Panics(t, func() {
 		tmp.Bytes().Reader()
 	})
+}
+
+func TestGatherBytes_File(t *testing.T) {
+	td := t.TempDir()
+	f, err := os.OpenFile(filepath.Join(td, "test"), os.O_CREATE|os.O_RDWR, 0x666)
+	require.NoError(t, err)
+	f.WriteString("this is an example")
+	n, err := f.Seek(0, -1)
+	oserr, ok := err.(*fs.PathError)
+	require.True(t, ok)
+	require.Equal(t, oserr.Err, syscall.EINVAL)
+	n, err = f.Seek(0, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), n)
+	n, err = f.Seek(-2, 0)
+	oserr, ok = err.(*fs.PathError)
+	require.True(t, ok)
+	require.Equal(t, oserr.Err, syscall.EINVAL)
+	n, err = f.Seek(-1, 1)
+	oserr, ok = err.(*fs.PathError)
+	require.True(t, ok)
+	require.Equal(t, oserr.Err, syscall.EINVAL)
+
+	n, err = f.Seek(0, 0)
+	require.NoError(t, err)
+	require.Equal(t, int64(0), n)
+
+	n, err = f.Seek(0, 2)
+	require.NoError(t, err)
+	require.Equal(t, int64(18), n)
+
+	_, err = f.WriteString("foo")
+	n, err = f.Seek(0, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(21), n)
+
+	n, err = f.Seek(0, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(21), n)
+
+	n0, err := f.WriteString("foo")
+	require.NoError(t, err)
+	require.Equal(t, 3, n0)
+
+	n, err = f.Seek(0, 1)
+	require.NoError(t, err)
+	require.Equal(t, int64(3), n)
 }
 
 func TestGatherBytes_ReaderWrapper(t *testing.T) {
