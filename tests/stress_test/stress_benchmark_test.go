@@ -100,7 +100,7 @@ func init() {
 }
 
 //nolint:unparam
-func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement int, root string) {
+func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0 int, root string) {
 	b.Helper()
 
 	size := fsize0
@@ -163,24 +163,24 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 				b.Fatalf("%v", err)
 			}
 
-			n0, err = rnd.Read(bs)
+			fsz0, err := rnd.Read(bs)
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
 
-			if n0 != size {
+			if fsz0 != size {
 				b.Fatalf("unexpected size")
 			}
 
 			buf := bytes.NewBuffer(bs)
 
-			var n2 int64
-			n2, err = io.Copy(f, buf)
+			var fsz1 int64
+			fsz1, err = io.Copy(f, buf)
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
 
-			if n2 != int64(size) {
+			if fsz1 != int64(size) {
 				b.Fatalf("unexpected size")
 			}
 		}
@@ -188,7 +188,7 @@ func CreateRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement i
 }
 
 //nolint:cyclop,gocyclo
-func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement int, root string) {
+func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0 int, root string) {
 	deln := 0
 	errn := 0
 	modn := 0
@@ -208,7 +208,9 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 			dname1 := fmt.Sprintf("dir-%d-%d", i0, i1)
 			dpath1 := fmt.Sprintf("%s/%s", dpath0, dname1)
 
-			b.Logf("second level directory %q..", dpath1)
+			if bVerbose {
+				b.Logf("second level directory %q..", dpath1)
+			}
 
 			what := rnd.Intn(5)
 
@@ -218,7 +220,9 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 
 			switch what {
 			case 0: // make dir and fill
-				b.Logf("target file to make-path %q..", dpath1)
+				if bVerbose {
+					b.Logf("target file to make-path %q..", dpath1)
+				}
 
 				err = os.Mkdir(dpath1, 0o777)
 				if os.IsExist(err) {
@@ -233,7 +237,9 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 					b.Fatalf("mkdir %q: %v", dpath1, err)
 				}
 
-				b.Logf("target file to create %q..", fpath1)
+				if bVerbose {
+					b.Logf("target file to create %q..", fpath1)
+				}
 
 				var f *os.File
 
@@ -250,7 +256,7 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 				} else if err != nil {
 					errn++
 
-					b.Fatalf("%v", err)
+					b.Fatalf("fopen %q: %v", fpath1, err)
 				}
 
 				// fill the file with random data
@@ -274,7 +280,9 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 
 				addn++
 			case 1: // remove file
-				b.Logf("target file to delete %q..", fpath1)
+				if bVerbose {
+					b.Logf("target file to delete %q..", fpath1)
+				}
 
 				err = os.Remove(fpath1)
 				if os.IsNotExist(err) {
@@ -289,7 +297,9 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0, replacement in
 
 				deln++
 			case 2: // modify file
-				b.Logf("target file to change %q", fpath1)
+				if bVerbose {
+					b.Logf("target file to change %q", fpath1)
+				}
 
 				k0 := rnd.Intn(fsize0)
 				k1 := rnd.Intn(fsize0)
@@ -356,6 +366,8 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, app *cli.App, kpapp *
 
 	bs0 := bytes.NewBuffer(make([]byte, 1024*64))
 	bs1 := bytes.NewBuffer(make([]byte, 1024*64))
+
+	b.Logf("command: %q", strings.Join(cmd, " "))
 
 	stdout, stderr, wait, _ := app.RunSubcommand(ctx, kpapp, strings.NewReader(""), cmd)
 
@@ -779,9 +791,9 @@ func BenchmarkBlockManager(b *testing.B) {
 
 	newTestingDirectories(b, tdirs)
 
-	if nReplacement != 0 {
+	if replacement0&0x1 != 0 {
 		b.Logf("creating reposiory files...")
-		CreateRepoFiles(b, rnd, n0, n1, fsize0, 0, tdirs.snapPath)
+		CreateRepoFiles(b, rnd, n0, n1, fsize0, tdirs.snapPath)
 	}
 
 	b.Logf("rootdir = %q", tdirs.rootPath)
@@ -860,9 +872,28 @@ func BenchmarkBlockManager(b *testing.B) {
 				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
 				"--persist-credentials")
 		case "filesystem":
+			f, err := os.Open(tdirs.repoPath)
+			if err != nil {
+				b.Fatalf("%#v", err)
+			}
+
+			fst, err := f.Stat()
+			if err != nil {
+				b.Fatalf("%#v", err)
+			}
+
+			if !fst.IsDir() {
+				b.Fatal("not a directory")
+			}
+
+			err = os.RemoveAll(tdirs.repoPath)
+			if err != nil {
+				b.Fatalf("%#v", err)
+			}
+
 			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
 				"filesystem",
-				fmt.Sprintf("--dir=%s", tdirs.repoPath),
+				fmt.Sprintf("--path=%s", tdirs.repoPath),
 				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
 				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
@@ -887,7 +918,7 @@ func BenchmarkBlockManager(b *testing.B) {
 		case "filesystem":
 			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "connect",
 				"filesystem",
-				fmt.Sprintf("--dir=%s", tdirs.repoPath),
+				fmt.Sprintf("--path=%s", tdirs.repoPath),
 				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
 				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
@@ -916,23 +947,21 @@ func BenchmarkBlockManager(b *testing.B) {
 
 	for i := 0; i < n; i++ {
 		// create a bunch of snapshots
-		func() {
-			app = cli.NewApp()
-			app.AdvancedCommands = "enabled"
+		app = cli.NewApp()
+		app.AdvancedCommands = "enabled"
 
-			envPrefix = fmt.Sprintf("T%v_", "TESTOLA")
-			app.SetEnvNamePrefixForTesting(envPrefix)
+		envPrefix = fmt.Sprintf("T%v_", "TESTOLA")
+		app.SetEnvNamePrefixForTesting(envPrefix)
 
-			kpapp = kingpin.New("test", "test")
-			logfile.Attach(app, kpapp)
+		kpapp = kingpin.New("test", "test")
+		logfile.Attach(app, kpapp)
 
-			b.Logf("snapshotting filesystem ...")
+		b.Logf("%d: snapshotting filesystem ...", i)
 
-			RunKopiaSubcommand(b, ctx, app, kpapp, "snapshot", "create",
-				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
-				tdirs.snapPath)
-			runtime.GC()
-		}()
+		RunKopiaSubcommand(b, ctx, app, kpapp, "snapshot", "create",
+			fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
+			tdirs.snapPath)
+		runtime.GC()
 
 		// profiles after each snapshot
 		for j := range ppnms {
@@ -959,12 +988,10 @@ func BenchmarkBlockManager(b *testing.B) {
 		b.Logf("%s", bs0)
 		b.Logf("%s", bs1)
 
-		if nReplacement != 0 {
-			func() {
-				b.Logf("altering filesystem ...")
-				TweakRepoFiles(b, rnd, n0, n1, fsize0, replacement0, tdirs.snapPath)
-				runtime.GC()
-			}()
+		if replacement0&0x2 != 0 {
+			b.Logf("altering filesystem ...")
+			TweakRepoFiles(b, rnd, n0, n1, fsize0, tdirs.snapPath)
+			runtime.GC()
 		}
 	}
 }
