@@ -13,6 +13,7 @@ import (
 	"path"
 	"runtime"
 	"runtime/pprof"
+	"runtime/trace"
 	"strings"
 	"sync"
 	"testing"
@@ -90,6 +91,8 @@ func init() {
 	}
 
 	ppnms = []string{
+		"trace",
+		"cpu",
 		"goroutine",    //    - stack traces of all current goroutines
 		"heap",         // - a sampling of memory allocations of live objects
 		"allocs",       // - a sampling of all past memory allocations
@@ -361,8 +364,74 @@ func TweakRepoFiles(b *testing.B, rnd *rand.Rand, n0, n1, fsize0 int, root strin
 }
 
 // RunKopiaSubcommand run a kopia sub-command in process.
-func RunKopiaSubcommand(b *testing.B, ctx context.Context, app *cli.App, kpapp *kingpin.Application, cmd ...string) {
+func RunKopiaSubcommand(b *testing.B, ctx context.Context, dumpfns string, tdirs *testDirectories, app *cli.App, kpapp *kingpin.Application, cmd ...string) {
 	b.Helper()
+
+	var ppf0 = map[string]*os.File{}
+
+	func() {
+		// dump profiles
+		for j := range ppnms {
+			var k int
+			var err error
+
+			for ppf0[ppnms[j]] == nil && k < 10000 {
+				fns := path.Join(tdirs.profPath, fmt.Sprintf(dumpfns, ppnms[j], k))
+
+				ppf0[ppnms[j]], err = os.OpenFile(fns, os.O_CREATE|os.O_EXCL, 0o666)
+				if err != nil && !os.IsExist(err) {
+					ppf0[ppnms[j]] = nil
+					b.Fatalf("%v", err)
+				}
+
+				k++
+			}
+
+			if ppf0[ppnms[j]] == nil {
+				b.Errorf("could not initialize profile %q", ppnms[j])
+				continue
+			}
+
+			switch ppnms[j] {
+			case "trace":
+				trace.Start(ppf0[ppnms[j]])
+			case "block":
+				runtime.SetBlockProfileRate(10)
+			case "mutex":
+				runtime.SetMutexProfileFraction(10)
+			case "cpu":
+				pprof.StartCPUProfile(ppf0[ppnms[j]])
+			}
+		}
+	}()
+
+	defer func() {
+		// dump profiles
+		for j := range ppnms {
+
+			if ppf0[ppnms[j]] == nil {
+				continue
+			}
+
+			switch ppnms[j] {
+			case "trace":
+				trace.Stop()
+			case "cpu":
+				pprof.StopCPUProfile()
+			}
+
+			err := pprof.Lookup(ppnms[j]).WriteTo(ppf0[ppnms[j]], 0)
+			if err != nil {
+				b.Errorf("%v", err)
+			}
+			err = ppf0[ppnms[j]].Close()
+			ppf0[ppnms[j]] = nil
+			if err != nil {
+				b.Fatalf("%v", err)
+			}
+
+		}
+	}()
 
 	bs0 := bytes.NewBuffer(make([]byte, 1024*64))
 	bs1 := bytes.NewBuffer(make([]byte, 1024*64))
@@ -862,8 +931,8 @@ func BenchmarkBlockManager(b *testing.B) {
 				b.Logf("ok = %t", ok)
 			}
 
-			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
-				"s3",
+			RunKopiaSubcommand(b, ctx, "repository.create.%s.%s", tdirs, app, kpapp, "repository", "create",
+				frepoformat0,
 				fmt.Sprintf("--bucket=%s", frepobucket0),
 				fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
 				fmt.Sprintf("--access-key=%s", awsAccessKeyID),
@@ -871,6 +940,7 @@ func BenchmarkBlockManager(b *testing.B) {
 				fmt.Sprintf("--password=%s", password),
 				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
 				"--persist-credentials")
+
 		case "filesystem":
 			f, err := os.Open(tdirs.repoPath)
 			if err != nil {
@@ -891,8 +961,8 @@ func BenchmarkBlockManager(b *testing.B) {
 				b.Fatalf("%#v", err)
 			}
 
-			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "create",
-				"filesystem",
+			RunKopiaSubcommand(b, ctx, "repository.create.%s.%s", tdirs, app, kpapp, "repository", "create",
+				frepoformat0,
 				fmt.Sprintf("--path=%s", tdirs.repoPath),
 				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
@@ -906,8 +976,8 @@ func BenchmarkBlockManager(b *testing.B) {
 
 		switch frepoformat0 {
 		case "s3":
-			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "connect",
-				"s3",
+			RunKopiaSubcommand(b, ctx, "repository.connect.%s.%d", tdirs, app, kpapp, "repository", "connect",
+				frepoformat0,
 				fmt.Sprintf("--bucket=%s", frepobucket0),
 				fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
 				fmt.Sprintf("--access-key=%s", awsAccessKeyID),
@@ -915,9 +985,10 @@ func BenchmarkBlockManager(b *testing.B) {
 				fmt.Sprintf("--password=%s", password),
 				fmt.Sprintf("--cache-directory=%s", tdirs.cachePath),
 				"--persist-credentials")
+
 		case "filesystem":
-			RunKopiaSubcommand(b, ctx, app, kpapp, "repository", "connect",
-				"filesystem",
+			RunKopiaSubcommand(b, ctx, "repository.connect.%s.%d", tdirs, app, kpapp, "repository", "connect",
+				frepoformat0,
 				fmt.Sprintf("--path=%s", tdirs.repoPath),
 				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 				fmt.Sprintf("--password=%s", password),
@@ -928,23 +999,7 @@ func BenchmarkBlockManager(b *testing.B) {
 		runtime.GC()
 	}()
 
-	// dump profiles
-	for j := range ppnms {
-		dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], 0)
-		ppf0, err := os.Create(path.Join(tdirs.profPath, dumpfn))
-		if err != nil {
-			b.Fatalf("%v", err)
-		}
-
-		err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
-		if err != nil {
-			ppf0.Close()
-			b.Fatalf("%v", err)
-		}
-
-		ppf0.Close()
-	}
-
+	// n times: fuzz snapshot directory and then snapshot
 	for i := 0; i < n; i++ {
 		// create a bunch of snapshots
 		app = cli.NewApp()
@@ -958,32 +1013,11 @@ func BenchmarkBlockManager(b *testing.B) {
 
 		b.Logf("%d: snapshotting filesystem ...", i)
 
-		RunKopiaSubcommand(b, ctx, app, kpapp, "snapshot", "create",
+		RunKopiaSubcommand(b, ctx, fmt.Sprintf("snapshot.create.%s.%d", i), tdirs, app, kpapp, "snapshot", "create",
 			fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 			tdirs.snapPath)
+
 		runtime.GC()
-
-		// profiles after each snapshot
-		for j := range ppnms {
-			dumpfn := fmt.Sprintf(fprofileformat3, "connect", ppnms[j], i)
-			ppf0, err := os.Create(path.Join(tdirs.profPath, dumpfn))
-			if err != nil {
-				b.Fatalf("%v", err)
-			}
-
-			err = pprof.Lookup(ppnms[j]).WriteTo(ppf0, 0)
-			if err != nil {
-				err0 := ppf0.Close()
-				if err0 != nil {
-					b.Logf("pprof lookup: %v", err)
-					b.Fatalf("close: %v", err0)
-				} else {
-					b.Fatalf("pprof lookup: %v", err)
-				}
-			}
-
-			ppf0.Close()
-		}
 
 		b.Logf("%s", bs0)
 		b.Logf("%s", bs1)
