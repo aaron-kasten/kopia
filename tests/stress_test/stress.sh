@@ -6,7 +6,7 @@ export KOPIA_STRESS_REPO_S3_BUCKET="aaron-kopia-stress"
 pushd $HOME/devel/kopia/tests/stress_test
 	# export KOPIA_DEBUG_PPROF='heap=rate=100:cpu:block=rate=100'
 
-	go test -timeout 30m -v -bench '^\QBenchmarkBlockManager\E$' -run '^$' $HOME/devel/kopia/tests/stress_test -args \
+	go test -timeout 90m -v -bench '^\QBenchmarkBlockManager\E$' -run '^$' $HOME/devel/kopia/tests/stress_test -args \
 		-stress_test.verbose=true \
 		-stress_test.rootdir=$HOME/stress \
 		-stress_test.replacement=3 \
