@@ -440,20 +440,17 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, dumpfns string, tdirs
 
 	stdout, stderr, wait, _ := app.RunSubcommand(ctx, kpapp, strings.NewReader(""), cmd)
 
-	bs0.Reset()
-	bs1.Reset()
-
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
 	go func() {
-		defer wg.Done()
 		io.Copy(bs0, stdout)
+		wg.Done()
 	}()
 
 	go func() {
-		defer wg.Done()
 		io.Copy(bs1, stderr)
+		wg.Done()
 	}()
 
 	err := wait()
@@ -832,9 +829,6 @@ func BenchmarkBlockManager(b *testing.B) {
 	shutdownfn := startFakeTimeServer(b, ctx, firstNow, 60.0) // 60 ms for every 1 ms
 	defer shutdownfn()
 
-	bs0 := bytes.NewBuffer(make([]byte, 1024*64))
-	bs1 := bytes.NewBuffer(make([]byte, 1024*64))
-
 	flag.Parse()
 
 	n0 := n0Flag
@@ -867,15 +861,6 @@ func BenchmarkBlockManager(b *testing.B) {
 
 	b.Logf("rootdir = %q", tdirs.rootPath)
 
-	app := cli.NewApp()
-	app.AdvancedCommands = "enabled"
-
-	envPrefix := fmt.Sprintf("T%v_", "TESTOLA")
-	app.SetEnvNamePrefixForTesting(envPrefix)
-
-	kpapp := kingpin.New("test", "test")
-	logfile.Attach(app, kpapp)
-
 	awsSecretAccessKey := ""
 	awsAccessKeyID := ""
 
@@ -889,6 +874,7 @@ func BenchmarkBlockManager(b *testing.B) {
 	}
 
 	if createrepo0 {
+
 		// s3 --bucket=BUCKET --access-key=ACCESS-KEY --secret-access-key=SECRET-ACCESS-KEY
 		b.Logf("create repository ...")
 
@@ -931,6 +917,15 @@ func BenchmarkBlockManager(b *testing.B) {
 				b.Logf("ok = %t", ok)
 			}
 
+			app := cli.NewApp()
+			app.AdvancedCommands = "enabled"
+
+			envPrefix := fmt.Sprintf("T%v_", "TESTOLA")
+			app.SetEnvNamePrefixForTesting(envPrefix)
+
+			kpapp := kingpin.New("test", "test")
+			logfile.Attach(app, kpapp)
+
 			RunKopiaSubcommand(b, ctx, "repository.create.%s.%s", tdirs, app, kpapp, "repository", "create",
 				frepoformat0,
 				fmt.Sprintf("--bucket=%s", frepobucket0),
@@ -961,6 +956,15 @@ func BenchmarkBlockManager(b *testing.B) {
 				b.Fatalf("%#v", err)
 			}
 
+			app := cli.NewApp()
+			app.AdvancedCommands = "enabled"
+
+			envPrefix := fmt.Sprintf("T%v_", "TESTOLA")
+			app.SetEnvNamePrefixForTesting(envPrefix)
+
+			kpapp := kingpin.New("test", "test")
+			logfile.Attach(app, kpapp)
+
 			RunKopiaSubcommand(b, ctx, "repository.create.%s.%s", tdirs, app, kpapp, "repository", "create",
 				frepoformat0,
 				fmt.Sprintf("--path=%s", tdirs.repoPath),
@@ -973,6 +977,15 @@ func BenchmarkBlockManager(b *testing.B) {
 
 	func() {
 		b.Logf("connecting to repository ...")
+
+		app := cli.NewApp()
+		app.AdvancedCommands = "enabled"
+
+		envPrefix := fmt.Sprintf("T%v_", "TESTOLA")
+		app.SetEnvNamePrefixForTesting(envPrefix)
+
+		kpapp := kingpin.New("test", "test")
+		logfile.Attach(app, kpapp)
 
 		switch frepoformat0 {
 		case "s3":
@@ -1001,26 +1014,24 @@ func BenchmarkBlockManager(b *testing.B) {
 
 	// n times: fuzz snapshot directory and then snapshot
 	for i := 0; i < n; i++ {
-		// create a bunch of snapshots
-		app = cli.NewApp()
+
+		app := cli.NewApp()
 		app.AdvancedCommands = "enabled"
 
-		envPrefix = fmt.Sprintf("T%v_", "TESTOLA")
+		envPrefix := fmt.Sprintf("T%v_", "TESTOLA")
 		app.SetEnvNamePrefixForTesting(envPrefix)
 
-		kpapp = kingpin.New("test", "test")
+		kpapp := kingpin.New("test", "test")
 		logfile.Attach(app, kpapp)
 
+		// create a bunch of snapshots
 		b.Logf("%d: snapshotting filesystem ...", i)
 
-		RunKopiaSubcommand(b, ctx, fmt.Sprintf("snapshot.create.%s.%d", i), tdirs, app, kpapp, "snapshot", "create",
+		RunKopiaSubcommand(b, ctx, fmt.Sprintf("snapshot.create.%%s.%%d.%d", i), tdirs, app, kpapp, "snapshot", "create",
 			fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
 			tdirs.snapPath)
 
 		runtime.GC()
-
-		b.Logf("%s", bs0)
-		b.Logf("%s", bs1)
 
 		if replacement0&0x2 != 0 {
 			b.Logf("altering filesystem ...")
