@@ -420,16 +420,19 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, dumpfns string, tdirs
 				pprof.StopCPUProfile()
 			}
 
-			err := pprof.Lookup(ppnms[j]).WriteTo(ppf0[ppnms[j]], 0)
-			if err != nil {
-				b.Errorf("%v", err)
+			prof := pprof.Lookup(ppnms[j])
+			if prof != nil {
+				err := prof.WriteTo(ppf0[ppnms[j]], 0)
+				if err != nil {
+					b.Errorf("%v", err)
+				}
 			}
-			err = ppf0[ppnms[j]].Close()
+
+			err := ppf0[ppnms[j]].Close()
 			ppf0[ppnms[j]] = nil
 			if err != nil {
 				b.Fatalf("%v", err)
 			}
-
 		}
 	}()
 
