@@ -378,7 +378,7 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, dumpfns string, tdirs
 			for ppf0[ppnms[j]] == nil && k < 10000 {
 				fns := path.Join(tdirs.profPath, fmt.Sprintf(dumpfns, ppnms[j], k))
 
-				ppf0[ppnms[j]], err = os.OpenFile(fns, os.O_CREATE|os.O_EXCL, 0o666)
+				ppf0[ppnms[j]], err = os.OpenFile(fns, os.O_CREATE|os.O_EXCL|os.O_RDWR, 0o666)
 				if err != nil && !os.IsExist(err) {
 					ppf0[ppnms[j]] = nil
 					b.Fatalf("%v", err)
@@ -396,9 +396,9 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, dumpfns string, tdirs
 			case "trace":
 				trace.Start(ppf0[ppnms[j]])
 			case "block":
-				runtime.SetBlockProfileRate(10)
+				runtime.SetBlockProfileRate(50)
 			case "mutex":
-				runtime.SetMutexProfileFraction(10)
+				runtime.SetMutexProfileFraction(50)
 			case "cpu":
 				pprof.StartCPUProfile(ppf0[ppnms[j]])
 			}
@@ -416,6 +416,10 @@ func RunKopiaSubcommand(b *testing.B, ctx context.Context, dumpfns string, tdirs
 			switch ppnms[j] {
 			case "trace":
 				trace.Stop()
+			case "block":
+				runtime.SetBlockProfileRate(0)
+			case "mutex":
+				runtime.SetMutexProfileFraction(0)
 			case "cpu":
 				pprof.StopCPUProfile()
 			}
