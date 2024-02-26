@@ -929,7 +929,7 @@ func BenchmarkBlockManager(b *testing.B) {
 			kpapp := kingpin.New("test", "test")
 			logfile.Attach(app, kpapp)
 
-			RunKopiaSubcommand(b, ctx, "repository.create.%s.%s", tdirs, app, kpapp, "repository", "create",
+			RunKopiaSubcommand(b, ctx, "repository.create.%s.%d", tdirs, app, kpapp, "repository", "create",
 				frepoformat0,
 				fmt.Sprintf("--bucket=%s", frepobucket0),
 				fmt.Sprintf("--secret-access-key=%s", awsSecretAccessKey),
@@ -968,7 +968,7 @@ func BenchmarkBlockManager(b *testing.B) {
 			kpapp := kingpin.New("test", "test")
 			logfile.Attach(app, kpapp)
 
-			RunKopiaSubcommand(b, ctx, "repository.create.%s.%s", tdirs, app, kpapp, "repository", "create",
+			RunKopiaSubcommand(b, ctx, "repository.create.%s.%d", tdirs, app, kpapp, "repository", "create",
 				frepoformat0,
 				fmt.Sprintf("--path=%s", tdirs.repoPath),
 				fmt.Sprintf("--config-file=%s", tdirs.configFilePath),
